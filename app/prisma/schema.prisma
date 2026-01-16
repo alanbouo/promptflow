@@ -1,0 +1,38 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Template {
+  id          String   @id @default(cuid())
+  name        String
+  systemPrompt String
+  userPrompts  String  // JSON array of prompt strings
+  settings    String   // JSON object with temperature, maxTokens, provider, model
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  jobs        Job[]
+}
+
+model Job {
+  id            String    @id @default(cuid())
+  n8nExecutionId String?
+  status        String    // pending, running, completed, failed
+  template      Template? @relation(fields: [templateId], references: [id])
+  templateId    String?
+  config        String    // JSON snapshot of config at run time
+  inputData     String    // JSON array of input items
+  results       String?   // JSON array of results
+  logs          String?   // JSON execution logs
+  tokenUsage    Int       @default(0)
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+}

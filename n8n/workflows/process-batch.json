@@ -1,0 +1,136 @@
+{
+  "name": "PromptFlow - Process Batch",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "process-batch",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "promptflow-batch"
+    },
+    {
+      "parameters": {
+        "functionCode": "const data = $input.first().json;\nconst items = data.dataItems.map((item, index) => ({\n  json: {\n    jobId: data.jobId,\n    systemPrompt: data.systemPrompt,\n    userPrompts: data.userPrompts,\n    settings: data.settings,\n    dataItem: item,\n    itemIndex: index,\n    callbackUrl: data.callbackUrl\n  }\n}));\n\nreturn items;"
+      },
+      "id": "split-items",
+      "name": "Split Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": "={{$json[\"batchSize\"] || 5}}",
+        "options": {}
+      },
+      "id": "batch",
+      "name": "SplitInBatches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "const userPrompts = $json.userPrompts;\nconst results = [];\nlet previousOutput = '';\n\nfor (let i = 0; i < userPrompts.length; i++) {\n  const prompt = userPrompts[i];\n  const formattedPrompt = prompt\n    .replace('{input}', $json.dataItem)\n    .replace('{previous_output}', previousOutput);\n  \n  results.push({\n    promptIndex: i,\n    prompt: formattedPrompt,\n    systemPrompt: $json.systemPrompt,\n    settings: $json.settings,\n    itemIndex: $json.itemIndex,\n    jobId: $json.jobId\n  });\n  \n  previousOutput = formattedPrompt;\n}\n\nreturn results;"
+      },
+      "id": "prepare-prompts",
+      "name": "Prepare Prompts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chatCompletion",
+        "model": "={{$json[\"settings\"][\"model\"]}}",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "={{$json[\"systemPrompt\"]}}"
+            },
+            {
+              "content": "={{$json[\"prompt\"]}}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": "={{$json[\"settings\"][\"temperature\"]}}",
+          "maxTokens": "={{$json[\"settings\"][\"maxTokens\"]}}"
+        }
+      },
+      "id": "openai",
+      "name": "OpenAI",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1050, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "1",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const allItems = $input.all();\nconst groupedByItem = {};\n\n// Group results by item index\nfor (const item of allItems) {\n  const itemIndex = item.json.itemIndex;\n  if (!groupedByItem[itemIndex]) {\n    groupedByItem[itemIndex] = [];\n  }\n  groupedByItem[itemIndex].push(item.json);\n}\n\n// Process each item's results\nconst results = [];\nfor (const [itemIndex, prompts] of Object.entries(groupedByItem)) {\n  const intermediates = [];\n  let finalOutput = '';\n  let totalTokens = 0;\n  \n  for (const prompt of prompts) {\n    const output = prompt.message?.content || prompt.text || '';\n    intermediates.push(output);\n    finalOutput = output;\n    \n    if (prompt.usage) {\n      totalTokens += prompt.usage.total_tokens || 0;\n    }\n  }\n  \n  results.push({\n    itemIndex: parseInt(itemIndex),\n    input: prompts[0].dataItem,\n    intermediates: intermediates,\n    finalOutput: finalOutput,\n    tokenUsage: totalTokens,\n    status: 'success'\n  });\n}\n\nreturn [{\n  json: {\n    jobId: allItems[0].json.jobId,\n    results: results,\n    callbackUrl: allItems[0].json.callbackUrl\n  }\n}];"
+      },
+      "id": "aggregate",
+      "name": "Aggregate Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$json[\"callbackUrl\"]}}",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "",
+              "value": "={{JSON.stringify($json)}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "callback",
+      "name": "Callback to Next.js",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1450, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{"node": "Split Items", "type": "main", "index": 0}]]
+    },
+    "Split Items": {
+      "main": [[{"node": "SplitInBatches", "type": "main", "index": 0}]]
+    },
+    "SplitInBatches": {
+      "main": [[{"node": "Prepare Prompts", "type": "main", "index": 0}]]
+    },
+    "Prepare Prompts": {
+      "main": [[{"node": "OpenAI", "type": "main", "index": 0}]]
+    },
+    "OpenAI": {
+      "main": [[{"node": "Aggregate Results", "type": "main", "index": 0}]]
+    },
+    "Aggregate Results": {
+      "main": [[{"node": "Callback to Next.js", "type": "main", "index": 0}]]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "id": "2"
+}
