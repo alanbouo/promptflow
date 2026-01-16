@@ -1,0 +1,129 @@
+{
+  "name": "PromptFlow - Process Single Item",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "process-single",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "promptflow-single"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "jobId",
+              "value": "={{$json[\"jobId\"]}}"
+            },
+            {
+              "name": "systemPrompt",
+              "value": "={{$json[\"systemPrompt\"]}}"
+            },
+            {
+              "name": "dataItem",
+              "value": "={{$json[\"dataItem\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-variables",
+      "name": "Set Variables",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "const userPrompts = $input.first().json.userPrompts;\nconst results = [];\nlet previousOutput = '';\n\nfor (let i = 0; i < userPrompts.length; i++) {\n  const prompt = userPrompts[i];\n  const formattedPrompt = prompt\n    .replace('{input}', $input.first().json.dataItem)\n    .replace('{previous_output}', previousOutput);\n  \n  results.push({\n    promptIndex: i,\n    prompt: formattedPrompt,\n    systemPrompt: $input.first().json.systemPrompt,\n    settings: $input.first().json.settings\n  });\n  \n  // This will be updated after LLM call\n  previousOutput = formattedPrompt;\n}\n\nreturn results;"
+      },
+      "id": "prepare-prompts",
+      "name": "Prepare Prompts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chatCompletion",
+        "model": "={{$json[\"settings\"][\"model\"]}}",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "={{$json[\"systemPrompt\"]}}"
+            },
+            {
+              "content": "={{$json[\"prompt\"]}}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": "={{$json[\"settings\"][\"temperature\"]}}",
+          "maxTokens": "={{$json[\"settings\"][\"maxTokens\"]}}"
+        }
+      },
+      "id": "openai",
+      "name": "OpenAI",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [850, 200],
+      "credentials": {
+        "openAiApi": {
+          "id": "1",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const items = $input.all();\nconst jobId = items[0].json.jobId;\nconst dataItem = items[0].json.dataItem;\nconst intermediates = [];\nlet finalOutput = '';\nlet totalTokens = 0;\n\nfor (const item of items) {\n  const output = item.json.message?.content || item.json.text || '';\n  intermediates.push(output);\n  finalOutput = output;\n  \n  if (item.json.usage) {\n    totalTokens += item.json.usage.total_tokens || 0;\n  }\n}\n\nreturn [{\n  json: {\n    jobId: jobId,\n    input: dataItem,\n    intermediates: intermediates,\n    finalOutput: finalOutput,\n    tokenUsage: {\n      total: totalTokens\n    },\n    status: 'success'\n  }\n}];"
+      },
+      "id": "aggregate-results",
+      "name": "Aggregate Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{"node": "Set Variables", "type": "main", "index": 0}]]
+    },
+    "Set Variables": {
+      "main": [[{"node": "Prepare Prompts", "type": "main", "index": 0}]]
+    },
+    "Prepare Prompts": {
+      "main": [[{"node": "OpenAI", "type": "main", "index": 0}]]
+    },
+    "OpenAI": {
+      "main": [[{"node": "Aggregate Results", "type": "main", "index": 0}]]
+    },
+    "Aggregate Results": {
+      "main": [[{"node": "Respond to Webhook", "type": "main", "index": 0}]]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "id": "1"
+}
