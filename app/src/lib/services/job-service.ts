@@ -11,12 +11,12 @@ export const JobService = {
    * Submit a new job for processing
    */
   async submitJob(): Promise<string | null> {
+    // Get configuration and input data from stores
+    const configStore = useConfigStore.getState();
+    const inputStore = useInputStore.getState();
+    const jobStore = useJobStore.getState();
+    
     try {
-      // Get configuration and input data from stores
-      const configStore = useConfigStore.getState();
-      const inputStore = useInputStore.getState();
-      const jobStore = useJobStore.getState();
-      
       // Set loading state
       jobStore.setIsLoading(true);
       jobStore.setError(null);

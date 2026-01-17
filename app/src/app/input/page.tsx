@@ -1,4 +1,6 @@
-import { useState } from 'react';
+'use client';
+
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useConfigStore } from '../../store/config-store';
 import { useInputStore } from '../../store/input-store';
@@ -20,11 +22,13 @@ export default function InputPage() {
   } = useInputStore();
   
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [isClient, setIsClient] = useState(false);
   
-  // Initialize batch mode from config settings
-  useState(() => {
+  // Initialize batch mode from config settings - only on client side
+  useEffect(() => {
+    setIsClient(true);
     setIsBatchMode(settings.batchProcessing);
-  });
+  }, []);
   
   // Toggle between single and batch mode
   const toggleMode = (isBatch: boolean) => {
