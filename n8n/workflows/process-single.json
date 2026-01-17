@@ -4,126 +4,101 @@
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "process-single",
+        "path": "process-single_4FEjn96sNr06KFE8KoiY3IwQMJxsMEFksAb7ntsurSA",
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "webhook",
+      "id": "e8ca23e7-0fbd-4991-ae44-4f8616668f08",
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
-      "position": [250, 300],
+      "position": [-144, -160],
       "webhookId": "promptflow-single"
     },
     {
       "parameters": {
-        "values": {
-          "string": [
-            {
-              "name": "jobId",
-              "value": "={{$json[\"jobId\"]}}"
-            },
-            {
-              "name": "systemPrompt",
-              "value": "={{$json[\"systemPrompt\"]}}"
-            },
-            {
-              "name": "dataItem",
-              "value": "={{$json[\"dataItem\"]}}"
-            }
-          ]
-        },
-        "options": {}
+        "jsCode": "// Get input data directly from webhook\nconst data = $input.first().json;\nconst body = data.body || data;\n\nconst jobId = body.jobId || 'unknown';\nconst systemPrompt = body.systemPrompt || '';\nconst dataItem = body.dataItem || '';\nconst userPrompts = body.userPrompts || [];\nconst settings = body.settings || {};\n\n// Format the first prompt (replace {input} placeholder)\nlet formattedPrompt = '';\nif (Array.isArray(userPrompts) && userPrompts.length > 0) {\n  formattedPrompt = String(userPrompts[0]).replace('{input}', dataItem);\n} else {\n  formattedPrompt = dataItem;\n}\n\n// Combine system prompt and user prompt\nconst fullPrompt = systemPrompt ? `${systemPrompt}\\n\\n${formattedPrompt}` : formattedPrompt;\n\nreturn [{\n  json: {\n    jobId: jobId,\n    systemPrompt: systemPrompt,\n    dataItem: dataItem,\n    userPrompts: userPrompts,\n    settings: settings,\n    formattedPrompt: fullPrompt\n  }\n}];"
       },
-      "id": "set-variables",
-      "name": "Set Variables",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 1,
-      "position": [450, 300]
-    },
-    {
-      "parameters": {
-        "functionCode": "const userPrompts = $input.first().json.userPrompts;\nconst results = [];\nlet previousOutput = '';\n\nfor (let i = 0; i < userPrompts.length; i++) {\n  const prompt = userPrompts[i];\n  const formattedPrompt = prompt\n    .replace('{input}', $input.first().json.dataItem)\n    .replace('{previous_output}', previousOutput);\n  \n  results.push({\n    promptIndex: i,\n    prompt: formattedPrompt,\n    systemPrompt: $input.first().json.systemPrompt,\n    settings: $input.first().json.settings\n  });\n  \n  // This will be updated after LLM call\n  previousOutput = formattedPrompt;\n}\n\nreturn results;"
-      },
-      "id": "prepare-prompts",
+      "id": "9f431563-8d59-4f8f-a7d9-bdc27a5be7a3",
       "name": "Prepare Prompts",
       "type": "n8n-nodes-base.code",
-      "typeVersion": 1,
-      "position": [650, 300]
+      "typeVersion": 2,
+      "position": [80, -160]
     },
     {
       "parameters": {
-        "resource": "chatCompletion",
-        "model": "={{$json[\"settings\"][\"model\"]}}",
-        "messages": {
-          "values": [
-            {
-              "role": "system",
-              "content": "={{$json[\"systemPrompt\"]}}"
-            },
-            {
-              "content": "={{$json[\"prompt\"]}}"
-            }
-          ]
-        },
-        "options": {
-          "temperature": "={{$json[\"settings\"][\"temperature\"]}}",
-          "maxTokens": "={{$json[\"settings\"][\"maxTokens\"]}}"
-        }
+        "promptType": "define",
+        "text": "={{ $json.formattedPrompt }}",
+        "options": {}
       },
-      "id": "openai",
-      "name": "OpenAI",
-      "type": "n8n-nodes-base.openAi",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [528, -160],
+      "id": "9d395bc4-5836-4b89-a069-546915c23c0c",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": "grok-4-1-fast-non-reasoning",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatXAiGrok",
       "typeVersion": 1,
-      "position": [850, 200],
+      "position": [600, 64],
+      "id": "d3f23615-3778-4008-8315-a8a59a1ea4f8",
+      "name": "xAI Grok Chat Model",
       "credentials": {
-        "openAiApi": {
-          "id": "1",
-          "name": "OpenAI API"
+        "xAiApi": {
+          "id": "bmzO5SuregEOFeq5",
+          "name": "xAi account"
         }
       }
     },
     {
       "parameters": {
-        "functionCode": "const items = $input.all();\nconst jobId = items[0].json.jobId;\nconst dataItem = items[0].json.dataItem;\nconst intermediates = [];\nlet finalOutput = '';\nlet totalTokens = 0;\n\nfor (const item of items) {\n  const output = item.json.message?.content || item.json.text || '';\n  intermediates.push(output);\n  finalOutput = output;\n  \n  if (item.json.usage) {\n    totalTokens += item.json.usage.total_tokens || 0;\n  }\n}\n\nreturn [{\n  json: {\n    jobId: jobId,\n    input: dataItem,\n    intermediates: intermediates,\n    finalOutput: finalOutput,\n    tokenUsage: {\n      total: totalTokens\n    },\n    status: 'success'\n  }\n}];"
+        "jsCode": "// Get the LLM response\nconst llmResponse = $input.first().json.text || $input.first().json.response || '';\n\n// Get original data from previous nodes (passed through)\nconst jobId = $('Prepare Prompts').first().json.jobId;\nconst dataItem = $('Prepare Prompts').first().json.dataItem;\n\nreturn [{\n  json: {\n    jobId: jobId,\n    input: dataItem,\n    intermediates: [],\n    finalOutput: llmResponse,\n    tokenUsage: {\n      prompt: 0,\n      completion: 0,\n      total: 0\n    },\n    status: 'success'\n  }\n}];"
       },
-      "id": "aggregate-results",
+      "id": "a818d185-1d04-4cf4-8538-5e660016be63",
       "name": "Aggregate Results",
       "type": "n8n-nodes-base.code",
-      "typeVersion": 1,
-      "position": [1050, 300]
+      "typeVersion": 2,
+      "position": [880, -160]
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{$json}}",
+        "responseBody": "={{ $json }}",
         "options": {}
       },
-      "id": "respond",
+      "id": "25afac90-861a-4661-86b2-d3cecb252e5d",
       "name": "Respond to Webhook",
       "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1,
-      "position": [1250, 300]
+      "typeVersion": 1.1,
+      "position": [1104, -160]
     }
   ],
   "connections": {
     "Webhook": {
-      "main": [[{"node": "Set Variables", "type": "main", "index": 0}]]
-    },
-    "Set Variables": {
       "main": [[{"node": "Prepare Prompts", "type": "main", "index": 0}]]
     },
     "Prepare Prompts": {
-      "main": [[{"node": "OpenAI", "type": "main", "index": 0}]]
+      "main": [[{"node": "Basic LLM Chain", "type": "main", "index": 0}]]
     },
-    "OpenAI": {
+    "Basic LLM Chain": {
       "main": [[{"node": "Aggregate Results", "type": "main", "index": 0}]]
     },
     "Aggregate Results": {
       "main": [[{"node": "Respond to Webhook", "type": "main", "index": 0}]]
+    },
+    "xAI Grok Chat Model": {
+      "ai_languageModel": [[{"node": "Basic LLM Chain", "type": "ai_languageModel", "index": 0}]]
     }
   },
+  "pinData": {},
   "active": true,
   "settings": {},
-  "id": "1"
+  "id": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
 }
