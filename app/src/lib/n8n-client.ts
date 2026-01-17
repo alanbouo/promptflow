@@ -53,11 +53,17 @@ export interface N8nExecutionInfo {
   };
 }
 
-const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
+const N8N_WEBHOOK_SINGLE = process.env.N8N_WEBHOOK_SINGLE;
+const N8N_WEBHOOK_BATCH = process.env.N8N_WEBHOOK_BATCH;
+const N8N_WEBHOOK_AUTH_TOKEN = process.env.N8N_WEBHOOK_AUTH_TOKEN;
 const NEXT_PUBLIC_APP_URL = process.env.NEXT_PUBLIC_APP_URL;
 
-if (!N8N_WEBHOOK_URL) {
-  console.error('N8N_WEBHOOK_URL environment variable is not set');
+if (!N8N_WEBHOOK_SINGLE) {
+  console.error('N8N_WEBHOOK_SINGLE environment variable is not set');
+}
+
+if (!N8N_WEBHOOK_BATCH) {
+  console.error('N8N_WEBHOOK_BATCH environment variable is not set');
 }
 
 if (!NEXT_PUBLIC_APP_URL) {
@@ -65,13 +71,28 @@ if (!NEXT_PUBLIC_APP_URL) {
 }
 
 /**
+ * Get headers for n8n webhook requests
+ */
+function getWebhookHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  
+  if (N8N_WEBHOOK_AUTH_TOKEN) {
+    headers['Authorization'] = `Bearer ${N8N_WEBHOOK_AUTH_TOKEN}`;
+  }
+  
+  return headers;
+}
+
+/**
  * Process a single data item through n8n
  */
 export async function processSingle(payload: SingleProcessPayload): Promise<ProcessResult> {
   try {
-    const response = await fetch(`${N8N_WEBHOOK_URL}/process-single`, {
+    const response = await fetch(N8N_WEBHOOK_SINGLE || '', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getWebhookHeaders(),
       body: JSON.stringify(payload),
     });
     
@@ -99,9 +120,9 @@ export async function processSingle(payload: SingleProcessPayload): Promise<Proc
  */
 export async function processBatch(payload: BatchProcessPayload): Promise<N8nExecutionInfo | null> {
   try {
-    const response = await fetch(`${N8N_WEBHOOK_URL}/process-batch`, {
+    const response = await fetch(N8N_WEBHOOK_BATCH || '', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getWebhookHeaders(),
       body: JSON.stringify(payload),
     });
     
@@ -136,9 +157,10 @@ export async function processBatch(payload: BatchProcessPayload): Promise<N8nExe
 export async function checkExecutionStatus(executionId: string): Promise<N8nExecutionInfo> {
   try {
     // This endpoint would need to be implemented in n8n
-    const response = await fetch(`${N8N_WEBHOOK_URL}/execution/${executionId}`, {
+    const baseUrl = N8N_WEBHOOK_SINGLE?.replace(/\/[^/]+$/, '') || '';
+    const response = await fetch(`${baseUrl}/execution/${executionId}`, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getWebhookHeaders(),
     });
     
     if (!response.ok) {
@@ -161,9 +183,10 @@ export async function checkExecutionStatus(executionId: string): Promise<N8nExec
 export async function cancelExecution(executionId: string): Promise<boolean> {
   try {
     // This endpoint would need to be implemented in n8n
-    const response = await fetch(`${N8N_WEBHOOK_URL}/execution/${executionId}/cancel`, {
+    const baseUrl = N8N_WEBHOOK_SINGLE?.replace(/\/[^/]+$/, '') || '';
+    const response = await fetch(`${baseUrl}/execution/${executionId}/cancel`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getWebhookHeaders(),
     });
     
     return response.ok;
@@ -180,8 +203,9 @@ export async function cancelExecution(executionId: string): Promise<boolean> {
 export async function testN8nConnectivity(): Promise<boolean> {
   try {
     // Try to fetch the n8n webhook URL to see if it's reachable
-    const response = await fetch(N8N_WEBHOOK_URL || '', {
+    const response = await fetch(N8N_WEBHOOK_SINGLE || '', {
       method: 'HEAD',
+      headers: getWebhookHeaders(),
     });
     
     return response.ok;
