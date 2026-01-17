@@ -1,9 +1,9 @@
-FROM node:20-alpine AS base
+FROM node:18-alpine AS base
 
 # Install dependencies only when needed
 FROM base AS deps
-# Install OpenSSL 1.1 compatibility for Prisma
-RUN apk add --no-cache libc6-compat openssl1.1-compat
+# Install libc6-compat for Alpine compatibility
+RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Install dependencies
@@ -12,8 +12,6 @@ RUN npm ci
 
 # Rebuild the source code only when needed
 FROM base AS builder
-# Install OpenSSL 1.1 compatibility for Prisma build
-RUN apk add --no-cache openssl1.1-compat
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -31,9 +29,6 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-
-# Install OpenSSL 1.1 compatibility for Prisma runtime
-RUN apk add --no-cache openssl1.1-compat
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
