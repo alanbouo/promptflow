@@ -8,106 +8,106 @@
         "responseMode": "lastNode",
         "options": {}
       },
-      "id": "webhook",
+      "id": "webhook-batch",
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
-      "position": [250, 300],
+      "position": [-144, -160],
       "webhookId": "promptflow-batch"
     },
     {
       "parameters": {
-        "functionCode": "const data = $input.first().json;\nconst items = data.dataItems.map((item, index) => ({\n  json: {\n    jobId: data.jobId,\n    systemPrompt: data.systemPrompt,\n    userPrompts: data.userPrompts,\n    settings: data.settings,\n    dataItem: item,\n    itemIndex: index,\n    callbackUrl: data.callbackUrl\n  }\n}));\n\nreturn items;"
+        "jsCode": "// Get input data directly from webhook\nconst data = $input.first().json;\nconst body = data.body || data;\n\nconst jobId = body.jobId || 'unknown';\nconst systemPrompt = body.systemPrompt || '';\nconst userPrompts = body.userPrompts || [];\nconst settings = body.settings || {};\nconst dataItems = body.dataItems || [];\nconst batchSize = body.batchSize || 5;\nconst callbackUrl = body.callbackUrl || '';\n\n// Create an item for each data item\nconst items = dataItems.map((item, index) => ({\n  json: {\n    jobId: jobId,\n    systemPrompt: systemPrompt,\n    userPrompts: userPrompts,\n    settings: settings,\n    dataItem: item,\n    itemIndex: index,\n    callbackUrl: callbackUrl,\n    batchSize: batchSize\n  }\n}));\n\nreturn items;"
       },
       "id": "split-items",
       "name": "Split Items",
       "type": "n8n-nodes-base.code",
-      "typeVersion": 1,
-      "position": [450, 300]
+      "typeVersion": 2,
+      "position": [80, -160]
     },
     {
       "parameters": {
-        "batchSize": "={{$json[\"batchSize\"] || 5}}",
+        "batchSize": "={{ $json.batchSize || 5 }}",
         "options": {}
       },
       "id": "batch",
       "name": "SplitInBatches",
       "type": "n8n-nodes-base.splitInBatches",
-      "typeVersion": 1,
-      "position": [650, 300]
+      "typeVersion": 3,
+      "position": [304, -160]
     },
     {
       "parameters": {
-        "functionCode": "const userPrompts = $json.userPrompts;\nconst results = [];\nlet previousOutput = '';\n\nfor (let i = 0; i < userPrompts.length; i++) {\n  const prompt = userPrompts[i];\n  const formattedPrompt = prompt\n    .replace('{input}', $json.dataItem)\n    .replace('{previous_output}', previousOutput);\n  \n  results.push({\n    promptIndex: i,\n    prompt: formattedPrompt,\n    systemPrompt: $json.systemPrompt,\n    settings: $json.settings,\n    itemIndex: $json.itemIndex,\n    jobId: $json.jobId\n  });\n  \n  previousOutput = formattedPrompt;\n}\n\nreturn results;"
+        "jsCode": "// Get input data\nconst jobId = $input.first().json.jobId;\nconst systemPrompt = $input.first().json.systemPrompt;\nconst dataItem = $input.first().json.dataItem;\nconst userPrompts = $input.first().json.userPrompts || [];\nconst settings = $input.first().json.settings || {};\nconst itemIndex = $input.first().json.itemIndex;\nconst callbackUrl = $input.first().json.callbackUrl;\n\n// Format the first prompt (replace {input} placeholder)\nlet formattedPrompt = '';\nif (Array.isArray(userPrompts) && userPrompts.length > 0) {\n  formattedPrompt = String(userPrompts[0]).replace('{input}', dataItem);\n} else {\n  formattedPrompt = dataItem;\n}\n\n// Combine system prompt and user prompt\nconst fullPrompt = systemPrompt ? `${systemPrompt}\\n\\n${formattedPrompt}` : formattedPrompt;\n\nreturn [{\n  json: {\n    jobId: jobId,\n    systemPrompt: systemPrompt,\n    dataItem: dataItem,\n    userPrompts: userPrompts,\n    settings: settings,\n    itemIndex: itemIndex,\n    callbackUrl: callbackUrl,\n    formattedPrompt: fullPrompt\n  }\n}];"
       },
-      "id": "prepare-prompts",
+      "id": "prepare-prompts-batch",
       "name": "Prepare Prompts",
       "type": "n8n-nodes-base.code",
-      "typeVersion": 1,
-      "position": [850, 300]
+      "typeVersion": 2,
+      "position": [528, -160]
     },
     {
       "parameters": {
-        "resource": "chatCompletion",
-        "model": "={{$json[\"settings\"][\"model\"]}}",
-        "messages": {
-          "values": [
-            {
-              "role": "system",
-              "content": "={{$json[\"systemPrompt\"]}}"
-            },
-            {
-              "content": "={{$json[\"prompt\"]}}"
-            }
-          ]
-        },
-        "options": {
-          "temperature": "={{$json[\"settings\"][\"temperature\"]}}",
-          "maxTokens": "={{$json[\"settings\"][\"maxTokens\"]}}"
-        }
+        "promptType": "define",
+        "text": "={{ $json.formattedPrompt }}",
+        "options": {}
       },
-      "id": "openai",
-      "name": "OpenAI",
-      "type": "n8n-nodes-base.openAi",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [752, -160],
+      "id": "llm-chain-batch",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": "grok-4-1-fast-non-reasoning",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatXAiGrok",
       "typeVersion": 1,
-      "position": [1050, 300],
+      "position": [824, 64],
+      "id": "grok-batch",
+      "name": "xAI Grok Chat Model",
       "credentials": {
-        "openAiApi": {
-          "id": "1",
-          "name": "OpenAI API"
+        "xAiApi": {
+          "id": "bmzO5SuregEOFeq5",
+          "name": "xAi account"
         }
       }
     },
     {
       "parameters": {
-        "functionCode": "const allItems = $input.all();\nconst groupedByItem = {};\n\n// Group results by item index\nfor (const item of allItems) {\n  const itemIndex = item.json.itemIndex;\n  if (!groupedByItem[itemIndex]) {\n    groupedByItem[itemIndex] = [];\n  }\n  groupedByItem[itemIndex].push(item.json);\n}\n\n// Process each item's results\nconst results = [];\nfor (const [itemIndex, prompts] of Object.entries(groupedByItem)) {\n  const intermediates = [];\n  let finalOutput = '';\n  let totalTokens = 0;\n  \n  for (const prompt of prompts) {\n    const output = prompt.message?.content || prompt.text || '';\n    intermediates.push(output);\n    finalOutput = output;\n    \n    if (prompt.usage) {\n      totalTokens += prompt.usage.total_tokens || 0;\n    }\n  }\n  \n  results.push({\n    itemIndex: parseInt(itemIndex),\n    input: prompts[0].dataItem,\n    intermediates: intermediates,\n    finalOutput: finalOutput,\n    tokenUsage: totalTokens,\n    status: 'success'\n  });\n}\n\nreturn [{\n  json: {\n    jobId: allItems[0].json.jobId,\n    results: results,\n    callbackUrl: allItems[0].json.callbackUrl\n  }\n}];"
+        "jsCode": "// Get the LLM response\nconst llmResponse = $input.first().json.text || $input.first().json.response || '';\n\n// Get original data from previous nodes\nconst jobId = $('Prepare Prompts').first().json.jobId;\nconst dataItem = $('Prepare Prompts').first().json.dataItem;\nconst itemIndex = $('Prepare Prompts').first().json.itemIndex;\nconst callbackUrl = $('Prepare Prompts').first().json.callbackUrl;\n\nreturn [{\n  json: {\n    jobId: jobId,\n    itemIndex: itemIndex,\n    input: dataItem,\n    intermediates: [],\n    finalOutput: llmResponse,\n    callbackUrl: callbackUrl,\n    tokenUsage: {\n      prompt: 0,\n      completion: 0,\n      total: 0\n    },\n    status: 'success'\n  }\n}];"
       },
-      "id": "aggregate",
+      "id": "aggregate-batch",
       "name": "Aggregate Results",
       "type": "n8n-nodes-base.code",
-      "typeVersion": 1,
-      "position": [1250, 300]
+      "typeVersion": 2,
+      "position": [976, -160]
     },
     {
       "parameters": {
-        "url": "={{$json[\"callbackUrl\"]}}",
-        "method": "POST",
+        "jsCode": "// Collect all results from the batch\nconst allItems = $input.all();\n\nconst results = allItems.map(item => ({\n  itemIndex: item.json.itemIndex,\n  input: item.json.input,\n  intermediates: item.json.intermediates,\n  finalOutput: item.json.finalOutput,\n  tokenUsage: item.json.tokenUsage,\n  status: item.json.status\n}));\n\n// Sort by itemIndex\nresults.sort((a, b) => a.itemIndex - b.itemIndex);\n\nreturn [{\n  json: {\n    jobId: allItems[0].json.jobId,\n    results: results,\n    callbackUrl: allItems[0].json.callbackUrl,\n    status: 'success'\n  }\n}];"
+      },
+      "id": "merge-results",
+      "name": "Merge Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, -160]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.callbackUrl }}",
         "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "",
-              "value": "={{JSON.stringify($json)}}"
-            }
-          ]
-        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
         "options": {}
       },
       "id": "callback",
       "name": "Callback to Next.js",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 3,
-      "position": [1450, 300]
+      "typeVersion": 4.2,
+      "position": [1424, -160]
     }
   ],
   "connections": {
@@ -118,19 +118,32 @@
       "main": [[{"node": "SplitInBatches", "type": "main", "index": 0}]]
     },
     "SplitInBatches": {
-      "main": [[{"node": "Prepare Prompts", "type": "main", "index": 0}]]
+      "main": [
+        [{"node": "Prepare Prompts", "type": "main", "index": 0}],
+        [{"node": "Merge Results", "type": "main", "index": 0}]
+      ]
     },
     "Prepare Prompts": {
-      "main": [[{"node": "OpenAI", "type": "main", "index": 0}]]
+      "main": [[{"node": "Basic LLM Chain", "type": "main", "index": 0}]]
     },
-    "OpenAI": {
+    "Basic LLM Chain": {
       "main": [[{"node": "Aggregate Results", "type": "main", "index": 0}]]
     },
     "Aggregate Results": {
+      "main": [[{"node": "SplitInBatches", "type": "main", "index": 0}]]
+    },
+    "Merge Results": {
       "main": [[{"node": "Callback to Next.js", "type": "main", "index": 0}]]
+    },
+    "xAI Grok Chat Model": {
+      "ai_languageModel": [[{"node": "Basic LLM Chain", "type": "ai_languageModel", "index": 0}]]
     }
   },
+  "pinData": {},
   "active": true,
   "settings": {},
-  "id": "2"
+  "id": "2",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
 }
