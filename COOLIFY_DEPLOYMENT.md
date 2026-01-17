@@ -43,8 +43,10 @@ Add these environment variables in Coolify:
 | Variable | Value |
 |----------|-------|
 | `DATABASE_URL` | `file:/app/data/promptflow.db` |
-| `N8N_WEBHOOK_URL` | `https://n8n-1.alainbouo.com/webhook` |
 | `NEXT_PUBLIC_APP_URL` | `https://promptflow.alainbouo.com` |
+| `N8N_WEBHOOK_SINGLE` | `https://n8n-1.alainbouo.com/webhook/process-single_YOUR_WEBHOOK_ID` |
+| `N8N_WEBHOOK_BATCH` | `https://n8n-1.alainbouo.com/webhook/process-batch_YOUR_WEBHOOK_ID` |
+| `N8N_WEBHOOK_AUTH_TOKEN` | Your Bearer token for n8n webhook authentication |
 
 ### 5. Configure Persistent Storage
 
@@ -112,6 +114,7 @@ curl -X POST https://n8n-1.alainbouo.com/webhook/process-single_4FEjn96sNr06KFE8
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `DATABASE_URL` | SQLite database path | `file:/app/data/promptflow.db` |
-| `N8N_WEBHOOK_URL` | Base URL for n8n webhooks | `https://n8n-1.alainbouo.com/webhook` |
 | `NEXT_PUBLIC_APP_URL` | Public URL of the app | `https://promptflow.alainbouo.com` |
-| `N8N_WEBHOOK_AUTH_TOKEN` | Auth token for n8n webhooks (optional) | `DlCqTUW7xL2d+Rte4D+B0A68+aEU55hN44hWfSwC/Ls=` |
+| `N8N_WEBHOOK_SINGLE` | Full URL for single item processing webhook | `https://n8n-1.alainbouo.com/webhook/process-single_abc123` |
+| `N8N_WEBHOOK_BATCH` | Full URL for batch processing webhook | `https://n8n-1.alainbouo.com/webhook/process-batch_xyz789` |
+| `N8N_WEBHOOK_AUTH_TOKEN` | Bearer token for n8n webhook authorization | `DlCqTUW7xL2d+Rte4D+B0A68+aEU55hN44hWfSwC/Ls=` |
