@@ -2,7 +2,8 @@ FROM node:20-alpine AS base
 
 # Install dependencies only when needed
 FROM base AS deps
-RUN apk add --no-cache libc6-compat
+# Install OpenSSL 1.1 compatibility for Prisma
+RUN apk add --no-cache libc6-compat openssl1.1-compat
 WORKDIR /app
 
 # Install dependencies
@@ -11,6 +12,8 @@ RUN npm ci
 
 # Rebuild the source code only when needed
 FROM base AS builder
+# Install OpenSSL 1.1 compatibility for Prisma build
+RUN apk add --no-cache openssl1.1-compat
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -29,12 +32,16 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Install OpenSSL 1.1 compatibility for Prisma runtime
+RUN apk add --no-cache openssl1.1-compat
+
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
 # Create data directory for SQLite
 RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data
 
+# Copy public folder (create empty if not exists)
 COPY --from=builder /app/public ./public
 
 # Set the correct permission for prerender cache
