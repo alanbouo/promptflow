@@ -20,6 +20,7 @@ export interface JobState {
   setCurrentJobId: (id: string | null) => void;
   setCurrentJob: (job: Job | null) => void;
   setIsLoading: (isLoading: boolean) => void;
+  setIsLoadingJobs: (isLoading: boolean) => void;
   setError: (error: string | null) => void;
   setJobs: (jobs: JobSummary[]) => void;
   addJob: (job: JobSummary) => void;
@@ -48,6 +49,8 @@ export const useJobStore = create<JobState>((set, get) => ({
   setCurrentJob: (job) => set({ currentJob: job }),
   
   setIsLoading: (isLoading) => set({ isLoading }),
+  
+  setIsLoadingJobs: (isLoadingJobs) => set({ isLoadingJobs }),
   
   setError: (error) => set({ error }),
   

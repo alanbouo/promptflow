@@ -82,7 +82,7 @@ export const useInputStore = create<InputState>()(
       
       clearBatchItems: () => set({ batchItems: [] }),
       
-      setIsBatchMode: (isBatch) => set({ isBatchMode }),
+      setIsBatchMode: (isBatch) => set({ isBatchMode: isBatch }),
       
       setFileInfo: (name, type) => set({ fileName: name, fileType: type }),
       

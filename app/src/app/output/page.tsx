@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+'use client';
+
+import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useJobStore } from '../../store/job-store';
 import { useJobResults } from '../../lib/hooks/useJobResults';
 import ResultsTable from '../../components/ResultsTable';
 import ProgressIndicator from '../../components/ProgressIndicator';
@@ -8,7 +9,7 @@ import SummaryStats from '../../components/SummaryStats';
 import LogsPanel from '../../components/LogsPanel';
 import ExportButtons from '../../components/ExportButtons';
 
-export default function OutputPage() {
+function OutputPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const jobId = searchParams.get('jobId');
@@ -163,5 +164,13 @@ export default function OutputPage() {
         </button>
       </div>
     </div>
+  );
+}
+
+export default function OutputPage() {
+  return (
+    <Suspense fallback={<div className="max-w-4xl mx-auto pb-12"><h1 className="text-3xl font-bold mb-6">Loading...</h1></div>}>
+      <OutputPageContent />
+    </Suspense>
   );
 }

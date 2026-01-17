@@ -120,7 +120,7 @@ const SettingsPanel: React.FC = () => {
             Custom Provider Configuration
           </p>
           <p className="text-yellow-700 dark:text-yellow-300 mt-1">
-            You'll need to configure the API endpoint in your n8n workflow.
+            You&apos;ll need to configure the API endpoint in your n8n workflow.
           </p>
         </div>
       )}
