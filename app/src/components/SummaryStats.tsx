@@ -103,17 +103,17 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({
           <div className="flex flex-wrap gap-4">
             <div>
               <div className="text-sm text-gray-500 dark:text-gray-400">Prompt Tokens</div>
-              <div className="text-xl font-semibold">{totalPromptTokens.toLocaleString()}</div>
+              <div className="text-xl font-semibold">{totalPromptTokens.toLocaleString('en-US')}</div>
             </div>
             
             <div>
               <div className="text-sm text-gray-500 dark:text-gray-400">Completion Tokens</div>
-              <div className="text-xl font-semibold">{totalCompletionTokens.toLocaleString()}</div>
+              <div className="text-xl font-semibold">{totalCompletionTokens.toLocaleString('en-US')}</div>
             </div>
             
             <div>
               <div className="text-sm text-gray-500 dark:text-gray-400">Total Tokens</div>
-              <div className="text-xl font-semibold">{totalTokens.toLocaleString()}</div>
+              <div className="text-xl font-semibold">{totalTokens.toLocaleString('en-US')}</div>
             </div>
             
             <div>

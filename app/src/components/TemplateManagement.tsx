@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+'use client';
+
+import React, { useState, useEffect } from 'react';
 import { useConfigStore } from '../store/config-store';
 
 export interface Template {
@@ -17,50 +19,12 @@ export interface Template {
   createdAt: string;
 }
 
-// Mock templates for UI development (will be replaced with API data)
-const mockTemplates: Template[] = [
-  {
-    id: '1',
-    name: 'Data Analysis',
-    systemPrompt: 'You are an expert data analyst.',
-    userPrompts: [
-      { id: 'p1', content: 'Analyze this data: {input}' },
-      { id: 'p2', content: 'Summarize key insights from: {previous_output}' }
-    ],
-    settings: {
-      provider: 'openai',
-      model: 'gpt-4',
-      temperature: 0.7,
-      maxTokens: 1000,
-      batchProcessing: true,
-      concurrentRequests: 5
-    },
-    createdAt: '2024-12-29T08:00:00.000Z'
-  },
-  {
-    id: '2',
-    name: 'Content Generation',
-    systemPrompt: 'You are a creative content writer.',
-    userPrompts: [
-      { id: 'p1', content: 'Generate content about: {input}' }
-    ],
-    settings: {
-      provider: 'anthropic',
-      model: 'claude-3-opus',
-      temperature: 1.2,
-      maxTokens: 2000,
-      batchProcessing: false,
-      concurrentRequests: 1
-    },
-    createdAt: '2024-12-28T10:30:00.000Z'
-  }
-];
-
 const TemplateManagement: React.FC = () => {
-  const [templates, setTemplates] = useState<Template[]>(mockTemplates);
+  const [templates, setTemplates] = useState<Template[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+  const [isClient, setIsClient] = useState(false);
   
   const { 
     systemPrompt, 
@@ -70,23 +34,53 @@ const TemplateManagement: React.FC = () => {
     updateSettings
   } = useConfigStore();
   
+  // Load templates from API on client side
+  useEffect(() => {
+    setIsClient(true);
+    fetchTemplates();
+  }, []);
+  
+  const fetchTemplates = async () => {
+    try {
+      const response = await fetch('/api/templates');
+      if (response.ok) {
+        const data = await response.json();
+        setTemplates(data);
+      } else {
+        console.error('Failed to fetch templates');
+      }
+    } catch (error) {
+      console.error('Error fetching templates:', error);
+    }
+  };
+  
   // Save current configuration as a template
-  const handleSaveTemplate = () => {
+  const handleSaveTemplate = async () => {
     if (!templateName.trim()) return;
     
-    const newTemplate: Template = {
-      id: Date.now().toString(),
-      name: templateName,
-      systemPrompt,
-      userPrompts,
-      settings,
-      createdAt: new Date().toISOString()
-    };
-    
-    // In a real app, this would call an API to save the template
-    setTemplates([...templates, newTemplate]);
-    setIsModalOpen(false);
-    setTemplateName('');
+    try {
+      const response = await fetch('/api/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: templateName,
+          systemPrompt,
+          userPrompts,
+          settings
+        })
+      });
+      
+      if (response.ok) {
+        const savedTemplate = await response.json();
+        setTemplates([savedTemplate, ...templates]);
+        setIsModalOpen(false);
+        setTemplateName('');
+      } else {
+        console.error('Failed to save template');
+      }
+    } catch (error) {
+      console.error('Error saving template:', error);
+    }
   };
   
   // Load a template
@@ -99,9 +93,20 @@ const TemplateManagement: React.FC = () => {
   };
   
   // Delete a template
-  const handleDeleteTemplate = (id: string) => {
-    // In a real app, this would call an API to delete the template
-    setTemplates(templates.filter(template => template.id !== id));
+  const handleDeleteTemplate = async (id: string) => {
+    try {
+      const response = await fetch(`/api/templates/${id}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        setTemplates(templates.filter(template => template.id !== id));
+      } else {
+        console.error('Failed to delete template');
+      }
+    } catch (error) {
+      console.error('Error deleting template:', error);
+    }
   };
   
   return (
@@ -126,7 +131,7 @@ const TemplateManagement: React.FC = () => {
               <div>
                 <h3 className="font-medium">{template.name}</h3>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {new Date(template.createdAt).toLocaleDateString()} • 
+                  {new Date(template.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })} • 
                   {template.userPrompts.length} prompt{template.userPrompts.length !== 1 ? 's' : ''} • 
                   {template.settings.provider}
                 </p>

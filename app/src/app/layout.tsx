@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import Link from 'next/link';
 import './globals.css';
 import ErrorBoundary from '../components/ErrorBoundary';
 
@@ -17,28 +18,51 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.className}>
-        <div className="flex h-screen">
-          <aside className="w-64 bg-gray-100 dark:bg-gray-800 p-4">
-            <h1 className="text-xl font-bold mb-6">PromptFlow</h1>
-            <nav className="space-y-2">
-              <a href="/" className="block p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700">Dashboard</a>
-              <a href="/configure" className="block p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700">Configure</a>
-              <a href="/input" className="block p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700">Input</a>
-              <a href="/output" className="block p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700">Output</a>
+      <body className={`${inter.className} bg-slate-50 text-slate-900 min-h-screen`}>
+        {/* Header */}
+        <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white shadow-sm">
+          <div className="max-w-7xl mx-auto flex h-16 items-center px-4 sm:px-6 lg:px-8">
+            <Link href="/" className="flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white font-bold text-lg">
+                P
+              </div>
+              <span className="text-xl font-bold text-slate-900">PromptFlow</span>
+            </Link>
+            <nav className="ml-10 flex items-center gap-1">
+              <Link 
+                href="/" 
+                className="px-4 py-2 text-sm font-medium text-slate-600 rounded-lg transition-colors hover:bg-slate-100 hover:text-slate-900"
+              >
+                Dashboard
+              </Link>
+              <Link 
+                href="/configure" 
+                className="px-4 py-2 text-sm font-medium text-slate-600 rounded-lg transition-colors hover:bg-slate-100 hover:text-slate-900"
+              >
+                Configure
+              </Link>
+              <Link 
+                href="/input" 
+                className="px-4 py-2 text-sm font-medium text-slate-600 rounded-lg transition-colors hover:bg-slate-100 hover:text-slate-900"
+              >
+                Input
+              </Link>
+              <Link 
+                href="/output" 
+                className="px-4 py-2 text-sm font-medium text-slate-600 rounded-lg transition-colors hover:bg-slate-100 hover:text-slate-900"
+              >
+                Output
+              </Link>
             </nav>
-            <div className="absolute bottom-4">
-              <button className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700">
-                Toggle Theme
-              </button>
-            </div>
-          </aside>
-          <main className="flex-1 p-6 overflow-auto">
-            <ErrorBoundary>
-              {children}
-            </ErrorBoundary>
-          </main>
-        </div>
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+          <ErrorBoundary>
+            {children}
+          </ErrorBoundary>
+        </main>
       </body>
     </html>
   );
