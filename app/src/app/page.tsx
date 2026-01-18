@@ -1,36 +1,127 @@
+import Link from 'next/link';
+
 export default function Home() {
   return (
-    <div className="max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Welcome to PromptFlow</h1>
-      
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-3">Getting Started</h2>
-        <p className="mb-4">PromptFlow helps you configure prompts, process data through LLMs, and display outputs.</p>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-          <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg">
-            <h3 className="font-medium mb-2">1. Configure</h3>
-            <p className="text-sm">Set up your system prompt, user prompts, and LLM settings</p>
-            <a href="/configure" className="block mt-3 text-blue-600 dark:text-blue-400 text-sm">Configure →</a>
+    <div className="space-y-8">
+      {/* Hero Section */}
+      <div className="text-center py-12">
+        <h1 className="text-4xl font-bold tracking-tight text-slate-900 mb-4">
+          Welcome to <span className="text-blue-600">PromptFlow</span>
+        </h1>
+        <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+          Configure prompts, process data through LLMs, and display outputs — all in one place.
+        </p>
+      </div>
+
+      {/* Workflow Steps */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Configure Card */}
+        <Link href="/configure" className="group">
+          <div className="bg-white rounded-xl border border-slate-200 p-6 transition-all hover:shadow-lg hover:border-blue-300">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100 text-blue-600 mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">1</span>
+              <h3 className="text-lg font-semibold text-slate-900">Configure</h3>
+            </div>
+            <p className="text-sm text-slate-600 mb-4">
+              Set up your system prompt and user prompts
+            </p>
+            <div className="flex items-center text-sm font-medium text-blue-600 group-hover:underline">
+              Get started
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-1">
+                <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+              </svg>
+            </div>
           </div>
-          
-          <div className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg">
-            <h3 className="font-medium mb-2">2. Input</h3>
-            <p className="text-sm">Upload or paste your data for processing</p>
-            <a href="/input" className="block mt-3 text-green-600 dark:text-green-400 text-sm">Input →</a>
+        </Link>
+
+        {/* Input Card */}
+        <Link href="/input" className="group">
+          <div className="bg-white rounded-xl border border-slate-200 p-6 transition-all hover:shadow-lg hover:border-green-300">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-green-100 text-green-600 mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>
+              </svg>
+            </div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-green-600 text-xs font-bold text-white">2</span>
+              <h3 className="text-lg font-semibold text-slate-900">Input</h3>
+            </div>
+            <p className="text-sm text-slate-600 mb-4">
+              Upload or paste your data for processing
+            </p>
+            <div className="flex items-center text-sm font-medium text-green-600 group-hover:underline">
+              Add data
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-1">
+                <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+              </svg>
+            </div>
           </div>
-          
-          <div className="bg-purple-50 dark:bg-purple-900/30 p-4 rounded-lg">
-            <h3 className="font-medium mb-2">3. Output</h3>
-            <p className="text-sm">View and export your results</p>
-            <a href="/output" className="block mt-3 text-purple-600 dark:text-purple-400 text-sm">Output →</a>
+        </Link>
+
+        {/* Output Card */}
+        <Link href="/output" className="group">
+          <div className="bg-white rounded-xl border border-slate-200 p-6 transition-all hover:shadow-lg hover:border-purple-300">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-purple-100 text-purple-600 mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/>
+              </svg>
+            </div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-purple-600 text-xs font-bold text-white">3</span>
+              <h3 className="text-lg font-semibold text-slate-900">Output</h3>
+            </div>
+            <p className="text-sm text-slate-600 mb-4">
+              View and export your results
+            </p>
+            <div className="flex items-center text-sm font-medium text-purple-600 group-hover:underline">
+              View results
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-1">
+                <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+              </svg>
+            </div>
+          </div>
+        </Link>
+      </div>
+
+      {/* Recent Jobs Section */}
+      <div className="bg-white rounded-xl border border-slate-200">
+        <div className="flex items-center justify-between p-6 border-b border-slate-200">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-900">Recent Jobs</h2>
+            <p className="text-sm text-slate-500">Your latest processing jobs</p>
+          </div>
+          <Link 
+            href="/output" 
+            className="text-sm font-medium text-blue-600 hover:underline"
+          >
+            View all
+          </Link>
+        </div>
+        <div className="p-6">
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400">
+                <rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium text-slate-900 mb-1">No jobs yet</h3>
+            <p className="text-sm text-slate-500 mb-4">
+              Start by configuring a prompt and adding some input data
+            </p>
+            <Link 
+              href="/configure"
+              className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
+            >
+              Create your first job
+            </Link>
           </div>
         </div>
-      </div>
-      
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold mb-3">Recent Jobs</h2>
-        <p className="text-gray-500 dark:text-gray-400 italic">No jobs yet. Start by configuring a prompt.</p>
       </div>
     </div>
   );

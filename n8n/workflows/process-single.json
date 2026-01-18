@@ -56,7 +56,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Get the LLM response\nconst llmResponse = $input.first().json.text || $input.first().json.response || '';\n\n// Get original data from previous nodes (passed through)\nconst jobId = $('Prepare Prompts').first().json.jobId;\nconst dataItem = $('Prepare Prompts').first().json.dataItem;\n\nreturn [{\n  json: {\n    jobId: jobId,\n    input: dataItem,\n    intermediates: [],\n    finalOutput: llmResponse,\n    tokenUsage: {\n      prompt: 0,\n      completion: 0,\n      total: 0\n    },\n    status: 'success'\n  }\n}];"
+        "jsCode": "// Get the LLM response\nconst llmResponse = $input.first().json.text || $input.first().json.response || '';\n\n// Get original data from previous nodes (passed through)\nconst jobId = $('Prepare Prompts').first().json.jobId;\nconst dataItem = $('Prepare Prompts').first().json.dataItem;\nconst formattedPrompt = $('Prepare Prompts').first().json.formattedPrompt || '';\n\n// Estimate token usage (roughly 4 characters per token)\nconst estimateTokens = (text) => Math.ceil((text || '').length / 4);\nconst promptTokens = estimateTokens(formattedPrompt);\nconst completionTokens = estimateTokens(llmResponse);\n\nreturn [{\n  json: {\n    jobId: jobId,\n    input: dataItem,\n    intermediates: [],\n    finalOutput: llmResponse,\n    tokenUsage: {\n      prompt: promptTokens,\n      completion: completionTokens\n    },\n    status: 'success'\n  }\n}];"
       },
       "id": "a818d185-1d04-4cf4-8538-5e660016be63",
       "name": "Aggregate Results",

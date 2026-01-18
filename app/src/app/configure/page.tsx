@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import SystemPromptEditor from '../../components/SystemPromptEditor';
 import UserPromptEditor from '../../components/UserPromptEditor';
 import PlaceholderValidator from '../../components/PlaceholderValidator';
-import SettingsPanel from '../../components/SettingsPanel';
 import BatchOptions from '../../components/BatchOptions';
 import TemplateManagement from '../../components/TemplateManagement';
 import { useConfigStore } from '../../store/config-store';
@@ -71,9 +70,6 @@ export default function ConfigurePage() {
       
       {/* User Prompt Editor */}
       <UserPromptEditor />
-      
-      {/* LLM Settings Panel */}
-      <SettingsPanel />
       
       {/* Batch Options */}
       <BatchOptions />

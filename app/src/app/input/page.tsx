@@ -9,6 +9,8 @@ import BatchInputUpload from '../../components/BatchInputUpload';
 import DataPreviewTable from '../../components/DataPreviewTable';
 import PromptPreview from '../../components/PromptPreview';
 import { validateInput } from '../../lib/validators/input-validator';
+import { JobService } from '../../lib/services/job-service';
+import { useJobStore } from '../../store/job-store';
 
 export default function InputPage() {
   const router = useRouter();
@@ -23,6 +25,8 @@ export default function InputPage() {
   
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [isClient, setIsClient] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { error: jobError, isLoading: jobLoading } = useJobStore();
   
   // Initialize batch mode from config settings - only on client side
   useEffect(() => {
@@ -36,7 +40,7 @@ export default function InputPage() {
   };
   
   // Handle run processing
-  const handleRunProcessing = () => {
+  const handleRunProcessing = async () => {
     // Validate input data
     const validation = validateInput(isBatchMode, singleInput, batchItems);
     
@@ -49,9 +53,22 @@ export default function InputPage() {
     
     // Clear any previous validation errors
     setValidationErrors([]);
+    setIsSubmitting(true);
     
-    // Navigate to the output page
-    router.push('/output');
+    try {
+      // Submit the job
+      const jobId = await JobService.submitJob();
+      
+      if (jobId) {
+        // Navigate to the output page with the job ID
+        router.push(`/output?jobId=${jobId}`);
+      } else {
+        // Job submission failed - error is in jobStore
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   
   return (
@@ -59,7 +76,7 @@ export default function InputPage() {
       <h1 className="text-3xl font-bold mb-6">Input Data</h1>
       
       {/* Validation Errors */}
-      {(validationErrors.length > 0 || parseError) && (
+      {(validationErrors.length > 0 || parseError || jobError) && (
         <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6 dark:bg-red-900/30 dark:border-red-600">
           <div className="flex">
             <div className="flex-shrink-0">
@@ -69,10 +86,12 @@ export default function InputPage() {
             </div>
             <div className="ml-3">
               <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
-                {parseError ? 'Parse Error' : 'Please fix the following errors:'}
+                {jobError ? 'Job Submission Error' : parseError ? 'Parse Error' : 'Please fix the following errors:'}
               </h3>
               <div className="mt-2 text-sm text-red-700 dark:text-red-300">
-                {parseError ? (
+                {jobError ? (
+                  <p>{jobError}</p>
+                ) : parseError ? (
                   <p>{parseError}</p>
                 ) : (
                   <ul className="list-disc pl-5 space-y-1">
@@ -123,11 +142,11 @@ export default function InputPage() {
           Back to Configure
         </button>
         <button 
-          className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+          className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
           onClick={handleRunProcessing}
-          disabled={isBatchMode ? batchItems.length === 0 : !singleInput.trim()}
+          disabled={isSubmitting || jobLoading || (isBatchMode ? batchItems.length === 0 : !singleInput.trim())}
         >
-          Run Processing
+          {isSubmitting || jobLoading ? 'Submitting...' : 'Run Processing'}
         </button>
       </div>
     </div>

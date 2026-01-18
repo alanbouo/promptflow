@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useConfigStore } from '../store/config-store';
 import { useInputStore } from '../store/input-store';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
 const PromptPreview: React.FC = () => {
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const { systemPrompt, userPrompts } = useConfigStore();
   const { isBatchMode, singleInput, batchItems } = useInputStore();
   
@@ -32,51 +34,65 @@ const PromptPreview: React.FC = () => {
   
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-      <h2 className="text-xl font-semibold mb-4">Prompt Preview</h2>
+      <button
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="flex items-center gap-2 w-full text-left"
+      >
+        {isCollapsed ? (
+          <ChevronRight className="h-5 w-5 text-gray-500" />
+        ) : (
+          <ChevronDown className="h-5 w-5 text-gray-500" />
+        )}
+        <h2 className="text-xl font-semibold">Prompt Preview</h2>
+      </button>
       
-      {!hasData && !isBatchMode && (
-        <p className="text-yellow-600 dark:text-yellow-400 mb-4">
-          Enter some data above to see how your prompt will look.
-        </p>
-      )}
-      
-      {isBatchMode && batchItems.length === 0 && (
-        <p className="text-yellow-600 dark:text-yellow-400 mb-4">
-          Upload or paste batch data to see how your prompt will look.
-        </p>
-      )}
-      
-      <div className="bg-gray-100 dark:bg-gray-700 rounded-md p-4 font-mono text-sm">
-        <div className="mb-3">
-          <span className="text-blue-600 dark:text-blue-400">System:</span> {systemPrompt || 'No system prompt defined'}
-        </div>
-        
-        <div className="mb-3">
-          <span className="text-green-600 dark:text-green-400">User:</span> {formatFirstPrompt() || 'No user prompt defined'}
-        </div>
-        
-        {formatSecondPrompt() && (
-          <>
-            <div className="mb-3 text-gray-500 dark:text-gray-400 italic">
-              [Assistant responds with first output]
-            </div>
+      {!isCollapsed && (
+        <div className="mt-4">
+          {!hasData && !isBatchMode && (
+            <p className="text-yellow-600 dark:text-yellow-400 mb-4">
+              Enter some data above to see how your prompt will look.
+            </p>
+          )}
+          
+          {isBatchMode && batchItems.length === 0 && (
+            <p className="text-yellow-600 dark:text-yellow-400 mb-4">
+              Upload or paste batch data to see how your prompt will look.
+            </p>
+          )}
+          
+          <div className="bg-gray-100 dark:bg-gray-700 rounded-md p-4 font-mono text-sm">
             <div className="mb-3">
-              <span className="text-green-600 dark:text-green-400">User:</span> {formatSecondPrompt()}
+              <span className="text-blue-600 dark:text-blue-400">System:</span> {systemPrompt || 'No system prompt defined'}
             </div>
-          </>
-        )}
-        
-        {userPrompts.length > 2 && (
-          <div className="text-gray-500 dark:text-gray-400 italic">
-            [Additional prompts will be chained in sequence]
+            
+            <div className="mb-3">
+              <span className="text-green-600 dark:text-green-400">User:</span> {formatFirstPrompt() || 'No user prompt defined'}
+            </div>
+            
+            {formatSecondPrompt() && (
+              <>
+                <div className="mb-3 text-gray-500 dark:text-gray-400 italic">
+                  [Assistant responds with first output]
+                </div>
+                <div className="mb-3">
+                  <span className="text-green-600 dark:text-green-400">User:</span> {formatSecondPrompt()}
+                </div>
+              </>
+            )}
+            
+            {userPrompts.length > 2 && (
+              <div className="text-gray-500 dark:text-gray-400 italic">
+                [Additional prompts will be chained in sequence]
+              </div>
+            )}
           </div>
-        )}
-      </div>
-      
-      {isBatchMode && batchItems.length > 1 && (
-        <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-          Preview shows the first item of {batchItems.length}. All items will be processed with the same prompt template.
-        </p>
+          
+          {isBatchMode && batchItems.length > 1 && (
+            <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+              Preview shows the first item of {batchItems.length}. All items will be processed with the same prompt template.
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
