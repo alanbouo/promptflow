@@ -1,10 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
 import prisma from '../../../lib/db';
+import { authOptions } from '../../../lib/auth';
 
-// GET /api/templates - List all templates
+// GET /api/templates - List user's templates
 export async function GET() {
   try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    
     const templates = await prisma.template.findMany({
+      where: {
+        userId: session.user.id
+      },
       orderBy: {
         createdAt: 'desc'
       }
@@ -19,6 +33,7 @@ export async function GET() {
       settings: string;
       createdAt: Date;
       updatedAt: Date;
+      userId: string;
     }) => ({
       id: template.id,
       name: template.name,
@@ -42,6 +57,15 @@ export async function GET() {
 // POST /api/templates - Create a new template
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    
     const body = await request.json();
     
     // Validate required fields
@@ -58,7 +82,8 @@ export async function POST(request: NextRequest) {
         name: body.name,
         systemPrompt: body.systemPrompt,
         userPrompts: JSON.stringify(body.userPrompts),
-        settings: JSON.stringify(body.settings)
+        settings: JSON.stringify(body.settings),
+        userId: session.user.id
       }
     });
     

@@ -134,6 +134,8 @@ function OutputPageContent() {
         results={results}
         startedAt={job?.startedAt}
         completedAt={job?.completedAt}
+        model={job?.config?.settings?.model}
+        systemPrompt={job?.config?.systemPrompt}
       />
       
       {/* Results Table */}

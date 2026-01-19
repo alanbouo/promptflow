@@ -3,8 +3,8 @@
 ## Prerequisites
 
 1. A Coolify server with access to your Git repository
-2. n8n server already running (e.g., `https://n8n-1.alainbouo.com`)
-3. Domain configured for the app (e.g., `promptflow.alainbouo.com`)
+2. n8n server already running (e.g., `https://n8n-1.alanbouo.com`)
+3. Domain configured for the app (e.g., `promptflow.alanbouo.com`)
 
 ## Deployment Steps
 
@@ -43,9 +43,9 @@ Add these environment variables in Coolify:
 | Variable | Value |
 |----------|-------|
 | `DATABASE_URL` | `file:/app/data/promptflow.db` |
-| `NEXT_PUBLIC_APP_URL` | `https://promptflow.alainbouo.com` |
-| `N8N_WEBHOOK_SINGLE` | `https://n8n-1.alainbouo.com/webhook/process-single_YOUR_WEBHOOK_ID` |
-| `N8N_WEBHOOK_BATCH` | `https://n8n-1.alainbouo.com/webhook/process-batch_YOUR_WEBHOOK_ID` |
+| `NEXT_PUBLIC_APP_URL` | `https://promptflow.alanbouo.com` |
+| `N8N_WEBHOOK_SINGLE` | `https://n8n-1.alanbouo.com/webhook/process-single_YOUR_WEBHOOK_ID` |
+| `N8N_WEBHOOK_BATCH` | `https://n8n-1.alanbouo.com/webhook/process-batch_YOUR_WEBHOOK_ID` |
 | `N8N_WEBHOOK_AUTH_TOKEN` | Your Bearer token for n8n webhook authentication |
 
 ### 5. Configure Persistent Storage
@@ -60,7 +60,7 @@ To persist the SQLite database across deployments:
 ### 6. Configure Domain
 
 1. Go to **Domains** in your application settings
-2. Add your domain: `promptflow.alainbouo.com`
+2. Add your domain: `promptflow.alanbouo.com`
 3. Enable HTTPS (Let's Encrypt)
 
 ### 7. Deploy
@@ -83,7 +83,7 @@ docker exec -it <container_id> npx prisma db push
 Test that the app can reach your n8n webhooks:
 
 ```bash
-curl -X POST https://n8n-1.alainbouo.com/webhook/process-single_4FEjn96sNr06KFE8KoiY3IwQMJxsMEFksAb7ntsurSA= \
+curl -X POST https://n8n-1.alanbouo.com/webhook/process-single_4FEjn96sNr06KFE8KoiY3IwQMJxsMEFksAb7ntsurSA= \
   -H "Content-Type: application/json" \
   -H "promptflow: YOUR_AUTH_TOKEN" \
   -d '{"jobId": "test", "systemPrompt": "Test", "userPrompts": ["Hello {input}"], "settings": {}, "dataItem": "World"}'
@@ -114,7 +114,7 @@ curl -X POST https://n8n-1.alainbouo.com/webhook/process-single_4FEjn96sNr06KFE8
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `DATABASE_URL` | SQLite database path | `file:/app/data/promptflow.db` |
-| `NEXT_PUBLIC_APP_URL` | Public URL of the app | `https://promptflow.alainbouo.com` |
-| `N8N_WEBHOOK_SINGLE` | Full URL for single item processing webhook | `https://n8n-1.alainbouo.com/webhook/process-single_abc123` |
-| `N8N_WEBHOOK_BATCH` | Full URL for batch processing webhook | `https://n8n-1.alainbouo.com/webhook/process-batch_xyz789` |
+| `NEXT_PUBLIC_APP_URL` | Public URL of the app | `https://promptflow.alanbouo.com` |
+| `N8N_WEBHOOK_SINGLE` | Full URL for single item processing webhook | `https://n8n-1.alanbouo.com/webhook/process-single_abc123` |
+| `N8N_WEBHOOK_BATCH` | Full URL for batch processing webhook | `https://n8n-1.alanbouo.com/webhook/process-batch_xyz789` |
 | `N8N_WEBHOOK_AUTH_TOKEN` | Bearer token for n8n webhook authorization | `DlCqTUW7xL2d+Rte4D+B0A68+aEU55hN44hWfSwC/Ls=` |

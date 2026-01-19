@@ -1,7 +1,22 @@
 import { useConfigStore } from '../../store/config-store';
 import { useInputStore } from '../../store/input-store';
 import { useJobStore } from '../../store/job-store';
-import { CreateJobRequest, Job, JobSummary } from '../types/job';
+import { CreateJobRequest, Job, JobSummary, JobConfig } from '../types/job';
+
+interface TemplateConfig {
+  id: string;
+  name: string;
+  systemPrompt: string;
+  userPrompts: { id: string; content: string }[];
+  settings: {
+    provider: string;
+    model: string;
+    temperature: number;
+    maxTokens: number;
+    batchProcessing: boolean;
+    concurrentRequests: number;
+  };
+}
 
 /**
  * Service for job submission and management
@@ -71,6 +86,71 @@ export const JobService = {
       return data.id;
     } catch (error) {
       console.error('Error submitting job:', error);
+      jobStore.setError(error instanceof Error ? error.message : 'Unknown error');
+      return null;
+    } finally {
+      jobStore.setIsLoading(false);
+    }
+  },
+  
+  /**
+   * Submit a job with a specific template configuration
+   */
+  async submitJobWithTemplate(template: TemplateConfig): Promise<string | null> {
+    const inputStore = useInputStore.getState();
+    const jobStore = useJobStore.getState();
+    
+    try {
+      jobStore.setIsLoading(true);
+      jobStore.setError(null);
+      
+      // Prepare input data
+      const inputData = inputStore.isBatchMode
+        ? inputStore.batchItems.map(item => item.content)
+        : [inputStore.singleInput];
+      
+      // Prepare job request using template config
+      const jobRequest: CreateJobRequest = {
+        templateId: template.id,
+        config: {
+          systemPrompt: template.systemPrompt,
+          userPrompts: template.userPrompts,
+          settings: template.settings
+        },
+        inputData
+      };
+      
+      // Submit job to API
+      const response = await fetch('/api/jobs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(jobRequest)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create job');
+      }
+      
+      const data = await response.json();
+      
+      // Add job to store
+      const jobSummary: JobSummary = {
+        id: data.id,
+        status: data.status,
+        itemsTotal: inputData.length,
+        itemsCompleted: 0,
+        tokenUsage: 0,
+        createdAt: new Date()
+      };
+      
+      jobStore.addJob(jobSummary);
+      
+      return data.id;
+    } catch (error) {
+      console.error('Error submitting job with template:', error);
       jobStore.setError(error instanceof Error ? error.message : 'Unknown error');
       return null;
     } finally {

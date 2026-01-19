@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
 import prisma from '../../../../lib/db';
+import { authOptions } from '../../../../lib/auth';
 
 // GET /api/templates/[id] - Get a single template
 export async function GET(
@@ -7,6 +9,15 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    
     const template = await prisma.template.findUnique({
       where: { id: params.id }
     });
@@ -15,6 +26,14 @@ export async function GET(
       return NextResponse.json(
         { error: 'Template not found' },
         { status: 404 }
+      );
+    }
+    
+    // Verify user owns this template
+    if (template.userId !== session.user.id) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
       );
     }
     
@@ -43,25 +62,45 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const template = await prisma.template.delete({
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    
+    // First check if template exists and user owns it
+    const template = await prisma.template.findUnique({
       where: { id: params.id }
     });
     
-    return NextResponse.json({
-      message: 'Template deleted successfully',
-      id: template.id
-    });
-  } catch (error) {
-    console.error('Error deleting template:', error);
-    
-    // Check if the error is due to template not found
-    if ((error as any).code === 'P2025') {
+    if (!template) {
       return NextResponse.json(
         { error: 'Template not found' },
         { status: 404 }
       );
     }
     
+    // Verify user owns this template
+    if (template.userId !== session.user.id) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
+      );
+    }
+    
+    await prisma.template.delete({
+      where: { id: params.id }
+    });
+    
+    return NextResponse.json({
+      message: 'Template deleted successfully',
+      id: params.id
+    });
+  } catch (error) {
+    console.error('Error deleting template:', error);
     return NextResponse.json(
       { error: 'Failed to delete template' },
       { status: 500 }

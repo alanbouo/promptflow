@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
 import prisma from '../../../../lib/db';
+import { authOptions } from '../../../../lib/auth';
 
 // GET /api/jobs/[id] - Get a single job
 export async function GET(
@@ -7,6 +9,15 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    
     const job = await prisma.job.findUnique({
       where: { id: params.id }
     });
@@ -15,6 +26,14 @@ export async function GET(
       return NextResponse.json(
         { error: 'Job not found' },
         { status: 404 }
+      );
+    }
+    
+    // Verify user owns this job
+    if (job.userId !== session.user.id) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
       );
     }
     
@@ -43,6 +62,15 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    
     const job = await prisma.job.findUnique({
       where: { id: params.id }
     });
@@ -51,6 +79,14 @@ export async function DELETE(
       return NextResponse.json(
         { error: 'Job not found' },
         { status: 404 }
+      );
+    }
+    
+    // Verify user owns this job
+    if (job.userId !== session.user.id) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
       );
     }
     

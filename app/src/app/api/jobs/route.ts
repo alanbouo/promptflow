@@ -1,13 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
 import { v4 as uuidv4 } from 'uuid';
 import prisma from '../../../lib/db';
 import { processSingle, processBatch } from '../../../lib/n8n-client';
 import { CreateJobRequest, JobStatus } from '../../../lib/types/job';
+import { authOptions } from '../../../lib/auth';
 
-// GET /api/jobs - List all jobs
+// GET /api/jobs - List user's jobs
 export async function GET() {
   try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    
     const jobs = await prisma.job.findMany({
+      where: {
+        userId: session.user.id
+      },
       orderBy: {
         createdAt: 'desc'
       },
@@ -53,6 +67,15 @@ export async function GET() {
 // POST /api/jobs - Create a new job
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    
     const body = await request.json() as CreateJobRequest;
     
     // Validate required fields
@@ -71,6 +94,7 @@ export async function POST(request: NextRequest) {
       id: jobId,
       status: 'pending' as JobStatus,
       templateId: body.templateId || null,
+      userId: session.user.id,
       config: JSON.stringify(body.config),
       inputData: JSON.stringify(body.inputData),
       tokenUsage: 0,

@@ -1,21 +1,52 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { JobResult } from '../lib/types/job';
+import { estimateTokens, calculateCost, formatCost, getModelPricing } from '../lib/utils/token-estimator';
 
 interface SummaryStatsProps {
   results: JobResult[];
   startedAt?: Date;
   completedAt?: Date;
+  model?: string;
+  systemPrompt?: string;
 }
 
 const SummaryStats: React.FC<SummaryStatsProps> = ({ 
   results, 
   startedAt, 
-  completedAt 
+  completedAt,
+  model = 'gpt-4',
+  systemPrompt = ''
 }) => {
-  // Calculate token usage
-  const totalPromptTokens = results.reduce((sum, result) => sum + (result.tokenUsage?.prompt || 0), 0);
-  const totalCompletionTokens = results.reduce((sum, result) => sum + (result.tokenUsage?.completion || 0), 0);
+  // Calculate token usage - use actual values if available, otherwise estimate
+  const tokenData = useMemo(() => {
+    let promptTokens = 0;
+    let completionTokens = 0;
+    let isEstimated = false;
+    
+    for (const result of results) {
+      const actualPrompt = result.tokenUsage?.prompt || 0;
+      const actualCompletion = result.tokenUsage?.completion || 0;
+      
+      if (actualPrompt > 0 || actualCompletion > 0) {
+        // Use actual token counts from API
+        promptTokens += actualPrompt;
+        completionTokens += actualCompletion;
+      } else {
+        // Estimate tokens from input/output text
+        isEstimated = true;
+        const inputText = systemPrompt + ' ' + (result.input || '');
+        promptTokens += estimateTokens(inputText);
+        completionTokens += estimateTokens(result.finalOutput || '');
+      }
+    }
+    
+    return { promptTokens, completionTokens, isEstimated };
+  }, [results, systemPrompt]);
+  
+  const totalPromptTokens = tokenData.promptTokens;
+  const totalCompletionTokens = tokenData.completionTokens;
   const totalTokens = totalPromptTokens + totalCompletionTokens;
+  const isEstimated = tokenData.isEstimated;
   
   // Calculate success/error counts
   const successCount = results.filter(result => result.status === 'success').length;
@@ -55,16 +86,13 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({
     return `${seconds}s`;
   };
   
-  // Calculate estimated cost (very rough approximation)
-  const calculateEstimatedCost = (): string => {
-    // Very rough approximation based on GPT-4 pricing
-    // $0.03 per 1K prompt tokens, $0.06 per 1K completion tokens
-    const promptCost = totalPromptTokens * 0.00003;
-    const completionCost = totalCompletionTokens * 0.00006;
-    const totalCost = promptCost + completionCost;
-    
-    return `$${totalCost.toFixed(4)}`;
-  };
+  // Calculate estimated cost using model-specific pricing
+  const estimatedCost = useMemo(() => {
+    return calculateCost(totalPromptTokens, totalCompletionTokens, model);
+  }, [totalPromptTokens, totalCompletionTokens, model]);
+  
+  const formattedCost = formatCost(estimatedCost);
+  const pricing = getModelPricing(model);
   
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
@@ -117,15 +145,16 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({
             </div>
             
             <div>
-              <div className="text-sm text-gray-500 dark:text-gray-400">Est. Cost (GPT-4)</div>
-              <div className="text-xl font-semibold">{calculateEstimatedCost()}</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">Est. Cost ({model})</div>
+              <div className="text-xl font-semibold">{formattedCost}</div>
             </div>
           </div>
         </div>
       </div>
       
       <div className="mt-4 text-xs text-gray-500 dark:text-gray-400">
-        * Cost estimation is approximate and based on standard GPT-4 pricing
+        * {isEstimated ? 'Token counts are estimated from text length. ' : ''}
+        Cost: ${pricing.input}/1K input, ${pricing.output}/1K output tokens
       </div>
     </div>
   );

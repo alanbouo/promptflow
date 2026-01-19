@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useConfigStore } from '../../store/config-store';
 import { useInputStore } from '../../store/input-store';
@@ -11,6 +11,22 @@ import PromptPreview from '../../components/PromptPreview';
 import { validateInput } from '../../lib/validators/input-validator';
 import { JobService } from '../../lib/services/job-service';
 import { useJobStore } from '../../store/job-store';
+import { Check, ChevronDown } from 'lucide-react';
+
+interface Template {
+  id: string;
+  name: string;
+  systemPrompt: string;
+  userPrompts: { id: string; content: string }[];
+  settings: {
+    provider: string;
+    model: string;
+    temperature: number;
+    maxTokens: number;
+    batchProcessing: boolean;
+    concurrentRequests: number;
+  };
+}
 
 export default function InputPage() {
   const router = useRouter();
@@ -28,11 +44,59 @@ export default function InputPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { error: jobError, isLoading: jobLoading } = useJobStore();
   
+  // Template selection state
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
+  const [isTemplateDropdownOpen, setIsTemplateDropdownOpen] = useState(false);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
+  const templateDropdownRef = useRef<HTMLDivElement>(null);
+  
   // Initialize batch mode from config settings - only on client side
   useEffect(() => {
     setIsClient(true);
     setIsBatchMode(settings.batchProcessing);
   }, []);
+  
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (templateDropdownRef.current && !templateDropdownRef.current.contains(event.target as Node)) {
+        setIsTemplateDropdownOpen(false);
+      }
+    }
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+  
+  // Fetch templates on mount
+  useEffect(() => {
+    async function fetchTemplates() {
+      try {
+        const response = await fetch('/api/templates');
+        if (response.ok) {
+          const data = await response.json();
+          setTemplates(data);
+        }
+      } catch (error) {
+        console.error('Error fetching templates:', error);
+      } finally {
+        setIsLoadingTemplates(false);
+      }
+    }
+    fetchTemplates();
+  }, []);
+  
+  // Toggle template selection
+  const toggleTemplateSelection = (templateId: string) => {
+    setSelectedTemplateIds(prev => 
+      prev.includes(templateId)
+        ? prev.filter(id => id !== templateId)
+        : [...prev, templateId]
+    );
+  };
   
   // Toggle between single and batch mode
   const toggleMode = (isBatch: boolean) => {
@@ -46,7 +110,13 @@ export default function InputPage() {
     
     if (!validation.isValid) {
       setValidationErrors(validation.errors);
-      // Scroll to top to show errors
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    
+    // Validate template selection
+    if (selectedTemplateIds.length === 0) {
+      setValidationErrors(['Please select at least one template to run']);
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
@@ -56,12 +126,26 @@ export default function InputPage() {
     setIsSubmitting(true);
     
     try {
-      // Submit the job
-      const jobId = await JobService.submitJob();
+      // Get selected templates
+      const selectedTemplates = templates.filter(t => selectedTemplateIds.includes(t.id));
       
-      if (jobId) {
-        // Navigate to the output page with the job ID
-        router.push(`/output?jobId=${jobId}`);
+      // Submit a job for each selected template
+      const jobIds: string[] = [];
+      for (const template of selectedTemplates) {
+        const jobId = await JobService.submitJobWithTemplate(template);
+        if (jobId) {
+          jobIds.push(jobId);
+        }
+      }
+      
+      if (jobIds.length > 0) {
+        // Navigate to the output page with the first job ID (or all if multiple)
+        if (jobIds.length === 1) {
+          router.push(`/output?jobId=${jobIds[0]}`);
+        } else {
+          // Navigate to output page to see all jobs
+          router.push('/output');
+        }
       } else {
         // Job submission failed - error is in jobStore
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -105,6 +189,96 @@ export default function InputPage() {
           </div>
         </div>
       )}
+      
+      {/* Template Selection */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+        <h2 className="text-lg font-semibold mb-4">Select Templates</h2>
+        <p className="text-sm text-slate-500 mb-4">Choose one or more templates to run your inputs against</p>
+        
+        {isLoadingTemplates ? (
+          <div className="flex items-center justify-center py-4">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+          </div>
+        ) : templates.length === 0 ? (
+          <div className="text-center py-4">
+            <p className="text-slate-500 mb-2">No templates available</p>
+            <button
+              onClick={() => router.push('/configure')}
+              className="text-blue-600 hover:underline text-sm"
+            >
+              Create a template first
+            </button>
+          </div>
+        ) : (
+          <div className="relative" ref={templateDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsTemplateDropdownOpen(!isTemplateDropdownOpen)}
+              className="w-full flex items-center justify-between px-4 py-3 border rounded-lg bg-white dark:bg-gray-700 hover:border-blue-400 transition-colors"
+            >
+              <span className="text-sm">
+                {selectedTemplateIds.length === 0 
+                  ? 'Select templates...' 
+                  : `${selectedTemplateIds.length} template${selectedTemplateIds.length > 1 ? 's' : ''} selected`}
+              </span>
+              <ChevronDown className={`h-4 w-4 transition-transform ${isTemplateDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+            
+            {isTemplateDropdownOpen && (
+              <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-700 border rounded-lg shadow-lg max-h-60 overflow-auto">
+                {templates.map((template) => (
+                  <button
+                    key={template.id}
+                    type="button"
+                    onClick={() => toggleTemplateSelection(template.id)}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-gray-600 transition-colors text-left"
+                  >
+                    <div className={`flex-shrink-0 w-5 h-5 rounded border ${
+                      selectedTemplateIds.includes(template.id) 
+                        ? 'bg-blue-600 border-blue-600' 
+                        : 'border-slate-300'
+                    } flex items-center justify-center`}>
+                      {selectedTemplateIds.includes(template.id) && (
+                        <Check className="h-3 w-3 text-white" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{template.name}</p>
+                      <p className="text-xs text-slate-500 truncate">
+                        {template.settings.model} • {template.userPrompts.length} prompt{template.userPrompts.length !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Selected templates chips */}
+        {selectedTemplateIds.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-3">
+            {selectedTemplateIds.map(id => {
+              const template = templates.find(t => t.id === id);
+              return template ? (
+                <span
+                  key={id}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium"
+                >
+                  {template.name}
+                  <button
+                    type="button"
+                    onClick={() => toggleTemplateSelection(id)}
+                    className="hover:text-blue-900"
+                  >
+                    ×
+                  </button>
+                </span>
+              ) : null;
+            })}
+          </div>
+        )}
+      </div>
       
       {/* Mode Selection */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
