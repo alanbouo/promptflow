@@ -2,7 +2,7 @@ import React from 'react';
 import { useConfigStore, ConfigSettings } from '../store/config-store';
 
 // LLM model options by provider
-const modelOptions = {
+const modelOptions: Record<string, { value: string; label: string }[]> = {
   openai: [
     { value: 'gpt-4', label: 'GPT-4' },
     { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
@@ -12,6 +12,10 @@ const modelOptions = {
     { value: 'claude-3-opus', label: 'Claude 3 Opus' },
     { value: 'claude-3-sonnet', label: 'Claude 3 Sonnet' },
     { value: 'claude-3-haiku', label: 'Claude 3 Haiku' }
+  ],
+  xai: [
+    { value: 'grok-4-1-fast-reasoning', label: 'Grok 4.1 Fast (Reasoning)' },
+    { value: 'grok-4-1-fast-non-reasoning', label: 'Grok 4.1 Fast (Non-Reasoning)' }
   ],
   custom: [
     { value: 'custom', label: 'Custom Model (via API)' }
@@ -49,6 +53,7 @@ const SettingsPanel: React.FC = () => {
           >
             <option value="openai">OpenAI</option>
             <option value="anthropic">Anthropic</option>
+            <option value="xai">xAI (Grok)</option>
             <option value="custom">Custom</option>
           </select>
         </div>

@@ -7,7 +7,7 @@ export interface UserPrompt {
 }
 
 export interface ConfigSettings {
-  provider: 'openai' | 'anthropic' | 'custom';
+  provider: 'openai' | 'anthropic' | 'xai' | 'custom';
   model: string;
   temperature: number;
   maxTokens: number;

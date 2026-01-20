@@ -21,6 +21,10 @@ export const MODEL_PRICING: Record<string, { input: number; output: number }> = 
   'claude-3-5-sonnet': { input: 0.003, output: 0.015 },
   'claude-2': { input: 0.008, output: 0.024 },
   
+  // xAI Grok models (pricing per 1M tokens: $0.20 input, $0.50 output)
+  'grok-4-1-fast-reasoning': { input: 0.0002, output: 0.0005 },
+  'grok-4-1-fast-non-reasoning': { input: 0.0002, output: 0.0005 },
+  
   // Default fallback
   'default': { input: 0.01, output: 0.03 }
 };
