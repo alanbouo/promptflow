@@ -6,6 +6,7 @@ import SystemPromptEditor from '../../components/SystemPromptEditor';
 import UserPromptEditor from '../../components/UserPromptEditor';
 import PlaceholderValidator from '../../components/PlaceholderValidator';
 import BatchOptions from '../../components/BatchOptions';
+import SettingsPanel from '../../components/SettingsPanel';
 import TemplateManagement from '../../components/TemplateManagement';
 import { useConfigStore } from '../../store/config-store';
 import { validateConfig } from '../../lib/validators';
@@ -70,6 +71,9 @@ export default function ConfigurePage() {
       
       {/* User Prompt Editor */}
       <UserPromptEditor />
+      
+      {/* LLM Settings */}
+      <SettingsPanel />
       
       {/* Batch Options */}
       <BatchOptions />
