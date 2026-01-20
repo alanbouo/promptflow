@@ -36,7 +36,18 @@ export default function ConfigurePage() {
   
   return (
     <div className="max-w-4xl mx-auto pb-12">
-      <h1 className="text-3xl font-bold mb-6">Configure Prompts</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold">Configure Prompts</h1>
+        <button
+          onClick={() => router.push('/refine')}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-purple-600 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 3v3m6.366-.366-2.12 2.12M21 12h-3m.366 6.366-2.12-2.12M12 21v-3m-6.366.366 2.12-2.12M3 12h3m-.366-6.366 2.12 2.12"/>
+          </svg>
+          Prompt Refinement Studio
+        </button>
+      </div>
       
       {/* Validation Errors */}
       {validationErrors.length > 0 && (

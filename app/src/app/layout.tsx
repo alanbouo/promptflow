@@ -46,6 +46,12 @@ export default function RootLayout({
                     Configure
                   </Link>
                   <Link 
+                    href="/refine" 
+                    className="px-4 py-2 text-sm font-medium text-slate-600 rounded-lg transition-colors hover:bg-slate-100 hover:text-slate-900"
+                  >
+                    Refine
+                  </Link>
+                  <Link 
                     href="/input" 
                     className="px-4 py-2 text-sm font-medium text-slate-600 rounded-lg transition-colors hover:bg-slate-100 hover:text-slate-900"
                   >
