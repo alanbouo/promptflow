@@ -183,7 +183,7 @@ export default function Home() {
                     </span>
                     <div>
                       <p className="text-sm font-medium text-slate-900">
-                        Job {job.id.slice(0, 8)}...
+                        {job.name || (job.templateName ? `${job.templateName}` : `Job ${job.id.slice(0, 8)}...`)}
                       </p>
                       <p className="text-xs text-slate-500">
                         {job.itemsCompleted}/{job.itemsTotal} items • {job.tokenUsage || 0} tokens

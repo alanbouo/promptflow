@@ -38,6 +38,7 @@ model Template {
 
 model Job {
   id            String    @id @default(cuid())
+  name          String?   // Generated name: template name + AI summary
   n8nExecutionId String?
   status        String    // pending, running, completed, failed
   template      Template? @relation(fields: [templateId], references: [id])

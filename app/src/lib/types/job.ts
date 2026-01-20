@@ -61,6 +61,8 @@ export interface UpdateJobRequest {
 
 export interface JobSummary {
   id: string;
+  name?: string;
+  templateName?: string;
   status: JobStatus;
   itemsTotal: number;
   itemsCompleted: number;

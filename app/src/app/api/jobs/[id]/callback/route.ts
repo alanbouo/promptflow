@@ -2,6 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '../../../../../lib/db';
 import { JobResult } from '../../../../../lib/types/job';
 
+// Generate a short summary from output text
+function generateOutputSummary(output: string): string {
+  if (!output) return '';
+  const cleaned = output
+    .replace(/[#*`_~\[\]()]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (cleaned.length <= 40) return cleaned;
+  const truncated = cleaned.slice(0, 40);
+  const lastSpace = truncated.lastIndexOf(' ');
+  return (lastSpace > 20 ? truncated.slice(0, lastSpace) : truncated) + '...';
+}
+
 // POST /api/jobs/[id]/callback - n8n callback to update job
 export async function POST(
   request: NextRequest,
@@ -19,9 +32,14 @@ export async function POST(
       );
     }
     
-    // Find the job
+    // Find the job with template info
     const job = await prisma.job.findUnique({
-      where: { id: jobId }
+      where: { id: jobId },
+      include: {
+        template: {
+          select: { name: true }
+        }
+      }
     });
     
     if (!job) {
@@ -47,10 +65,22 @@ export async function POST(
     const hasErrors = results.some(result => result.status === 'error');
     const status = isCompleted ? (hasErrors ? 'failed' : 'completed') : 'running';
     
+    // Generate job name when completed
+    let jobName = job.name;
+    if (isCompleted && !job.name && results.length > 0) {
+      const templateName = job.template?.name || '';
+      const firstOutput = results[0]?.finalOutput || '';
+      const outputSummary = generateOutputSummary(firstOutput);
+      jobName = templateName 
+        ? `${templateName}: ${outputSummary}`
+        : outputSummary || `Job ${jobId.slice(0, 8)}`;
+    }
+    
     // Update the job
     await prisma.job.update({
       where: { id: jobId },
       data: {
+        name: jobName,
         status,
         results: JSON.stringify(results),
         tokenUsage,

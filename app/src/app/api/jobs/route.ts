@@ -6,6 +6,21 @@ import { processSingle, processBatch } from '../../../lib/n8n-client';
 import { CreateJobRequest, JobStatus } from '../../../lib/types/job';
 import { authOptions } from '../../../lib/auth';
 
+// Generate a short summary from output text (first ~50 chars, cleaned up)
+function generateOutputSummary(output: string): string {
+  if (!output) return '';
+  // Remove markdown, extra whitespace, and truncate
+  const cleaned = output
+    .replace(/[#*`_~\[\]()]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (cleaned.length <= 40) return cleaned;
+  // Find a good break point
+  const truncated = cleaned.slice(0, 40);
+  const lastSpace = truncated.lastIndexOf(' ');
+  return (lastSpace > 20 ? truncated.slice(0, lastSpace) : truncated) + '...';
+}
+
 // GET /api/jobs - List user's jobs
 export async function GET() {
   try {
@@ -27,13 +42,19 @@ export async function GET() {
       },
       select: {
         id: true,
+        name: true,
         status: true,
         inputData: true,
         results: true,
         tokenUsage: true,
         startedAt: true,
         completedAt: true,
-        createdAt: true
+        createdAt: true,
+        template: {
+          select: {
+            name: true
+          }
+        }
       }
     });
     
@@ -44,6 +65,8 @@ export async function GET() {
       
       return {
         id: job.id,
+        name: job.name,
+        templateName: job.template?.name,
         status: job.status,
         itemsTotal: inputData.length,
         itemsCompleted: results.length,
@@ -152,10 +175,27 @@ export async function POST(request: NextRequest) {
         dataItem: body.inputData[0]
       });
       
+      // Get template name for job naming
+      let templateName = '';
+      if (body.templateId) {
+        const template = await prisma.template.findUnique({
+          where: { id: body.templateId },
+          select: { name: true }
+        });
+        templateName = template?.name || '';
+      }
+      
+      // Generate job name from template + output summary
+      const outputSummary = generateOutputSummary(result.finalOutput);
+      const jobName = templateName 
+        ? `${templateName}: ${outputSummary}`
+        : outputSummary || `Job ${jobId.slice(0, 8)}`;
+      
       // Update job with result
       await prisma.job.update({
         where: { id: jobId },
         data: {
+          name: jobName,
           status: result.status === 'success' ? 'completed' : 'failed',
           results: JSON.stringify([result]),
           tokenUsage: result.tokenUsage.prompt + result.tokenUsage.completion,
