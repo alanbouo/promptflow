@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { v4 as uuidv4 } from 'uuid';
 import prisma from '../../../lib/db';
-import { processSingle, processBatch } from '../../../lib/n8n-client';
-import { CreateJobRequest, JobStatus } from '../../../lib/types/job';
+import { processWithChaining } from '../../../lib/llm-client';
+import { CreateJobRequest, JobStatus, JobResult } from '../../../lib/types/job';
 import { authOptions } from '../../../lib/auth';
 
 // Generate a short summary from output text (first ~50 chars, cleaned up)
@@ -141,67 +141,124 @@ export async function POST(request: NextRequest) {
       }
     });
     
-    // Process the job using n8n
-    if (isBatch) {
-      // For batch processing
-      const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/jobs/${jobId}/callback`;
-      
-      await processBatch({
-        jobId,
-        systemPrompt: body.config.systemPrompt,
-        userPrompts: body.config.userPrompts.map(p => p.content),
-        settings: {
-          provider: body.config.settings.provider,
-          model: body.config.settings.model,
-          temperature: body.config.settings.temperature,
-          maxTokens: body.config.settings.maxTokens
-        },
-        dataItems: body.inputData,
-        batchSize: body.config.settings.concurrentRequests,
-        callbackUrl
+    // Get template name for job naming
+    let templateName = '';
+    if (body.templateId) {
+      const template = await prisma.template.findUnique({
+        where: { id: body.templateId },
+        select: { name: true }
       });
-    } else {
-      // For single processing
-      const result = await processSingle({
-        jobId,
-        systemPrompt: body.config.systemPrompt,
-        userPrompts: body.config.userPrompts.map(p => p.content),
-        settings: {
-          provider: body.config.settings.provider,
-          model: body.config.settings.model,
-          temperature: body.config.settings.temperature,
-          maxTokens: body.config.settings.maxTokens
-        },
-        dataItem: body.inputData[0]
-      });
-      
-      // Get template name for job naming
-      let templateName = '';
-      if (body.templateId) {
-        const template = await prisma.template.findUnique({
-          where: { id: body.templateId },
-          select: { name: true }
+      templateName = template?.name || '';
+    }
+
+    // Process the job using direct LLM calls
+    const userPromptContents = body.config.userPrompts.map(p => p.content);
+    const settings = {
+      provider: body.config.settings.provider,
+      model: body.config.settings.model,
+      temperature: body.config.settings.temperature,
+      maxTokens: body.config.settings.maxTokens
+    };
+
+    try {
+      if (isBatch) {
+        // For batch processing - process all items
+        const results: JobResult[] = [];
+        let totalTokens = 0;
+
+        for (const dataItem of body.inputData) {
+          try {
+            const llmResult = await processWithChaining(
+              body.config.systemPrompt,
+              userPromptContents,
+              dataItem,
+              settings
+            );
+
+            results.push({
+              input: dataItem,
+              intermediates: llmResult.intermediates,
+              finalOutput: llmResult.finalOutput,
+              tokenUsage: llmResult.tokenUsage,
+              status: 'success'
+            });
+
+            totalTokens += llmResult.tokenUsage.prompt + llmResult.tokenUsage.completion;
+          } catch (itemError) {
+            results.push({
+              input: dataItem,
+              finalOutput: '',
+              tokenUsage: { prompt: 0, completion: 0 },
+              status: 'error',
+              error: itemError instanceof Error ? itemError.message : 'Unknown error'
+            });
+          }
+        }
+
+        // Generate job name from first successful result
+        const firstSuccess = results.find(r => r.status === 'success');
+        const outputSummary = generateOutputSummary(firstSuccess?.finalOutput || '');
+        const jobName = templateName 
+          ? `${templateName}: ${outputSummary}`
+          : outputSummary || `Job ${jobId.slice(0, 8)}`;
+
+        const hasErrors = results.some(r => r.status === 'error');
+
+        await prisma.job.update({
+          where: { id: jobId },
+          data: {
+            name: jobName,
+            status: hasErrors ? 'failed' : 'completed',
+            results: JSON.stringify(results),
+            tokenUsage: totalTokens,
+            completedAt: new Date()
+          }
         });
-        templateName = template?.name || '';
+      } else {
+        // For single processing
+        const llmResult = await processWithChaining(
+          body.config.systemPrompt,
+          userPromptContents,
+          body.inputData[0],
+          settings
+        );
+
+        const result: JobResult = {
+          input: body.inputData[0],
+          intermediates: llmResult.intermediates,
+          finalOutput: llmResult.finalOutput,
+          tokenUsage: llmResult.tokenUsage,
+          status: 'success'
+        };
+
+        // Generate job name from template + output summary
+        const outputSummary = generateOutputSummary(result.finalOutput);
+        const jobName = templateName 
+          ? `${templateName}: ${outputSummary}`
+          : outputSummary || `Job ${jobId.slice(0, 8)}`;
+
+        // Update job with result
+        await prisma.job.update({
+          where: { id: jobId },
+          data: {
+            name: jobName,
+            status: 'completed',
+            results: JSON.stringify([result]),
+            tokenUsage: result.tokenUsage.prompt + result.tokenUsage.completion,
+            completedAt: new Date()
+          }
+        });
       }
-      
-      // Generate job name from template + output summary
-      const outputSummary = generateOutputSummary(result.finalOutput);
-      const jobName = templateName 
-        ? `${templateName}: ${outputSummary}`
-        : outputSummary || `Job ${jobId.slice(0, 8)}`;
-      
-      // Update job with result
+    } catch (error) {
+      // Update job as failed
       await prisma.job.update({
         where: { id: jobId },
         data: {
-          name: jobName,
-          status: result.status === 'success' ? 'completed' : 'failed',
-          results: JSON.stringify([result]),
-          tokenUsage: result.tokenUsage.prompt + result.tokenUsage.completion,
+          status: 'failed',
           completedAt: new Date()
         }
       });
+      throw error;
     }
     
     // Return the created job
