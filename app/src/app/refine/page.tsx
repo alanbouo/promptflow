@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useConfigStore } from '../../store/config-store';
 
@@ -22,6 +22,19 @@ interface TestResult {
   output: string;
   timestamp: Date;
 }
+
+interface HistorySession {
+  id: string;
+  name: string;
+  useCase: string;
+  systemPrompt: string;
+  userPrompt: string;
+  examples: Example[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+const HISTORY_STORAGE_KEY = 'promptflow-refine-history';
 
 export default function RefinePage() {
   const router = useRouter();
@@ -52,6 +65,107 @@ export default function RefinePage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [isRefining, setIsRefining] = useState(false);
+  
+  // History
+  const [history, setHistory] = useState<HistorySession[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+
+  // Load history from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(HISTORY_STORAGE_KEY);
+      if (stored) {
+        setHistory(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.error('Failed to load history:', e);
+    }
+  }, []);
+
+  // Save history to localStorage whenever it changes
+  useEffect(() => {
+    if (history.length > 0) {
+      try {
+        localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
+      } catch (e) {
+        console.error('Failed to save history:', e);
+      }
+    }
+  }, [history]);
+
+  // Save current session to history
+  const saveToHistory = (name?: string) => {
+    if (!systemPrompt.trim() && !userPrompt.trim() && !useCase.trim()) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const sessionName = name || useCase.slice(0, 50) || 'Untitled Session';
+
+    if (currentSessionId) {
+      // Update existing session
+      setHistory(prev => prev.map(s => 
+        s.id === currentSessionId 
+          ? { ...s, useCase, systemPrompt, userPrompt, examples, updatedAt: now, name: sessionName }
+          : s
+      ));
+    } else {
+      // Create new session
+      const newSession: HistorySession = {
+        id: Date.now().toString(),
+        name: sessionName,
+        useCase,
+        systemPrompt,
+        userPrompt,
+        examples,
+        createdAt: now,
+        updatedAt: now,
+      };
+      setHistory(prev => [newSession, ...prev]);
+      setCurrentSessionId(newSession.id);
+    }
+  };
+
+  // Load a session from history
+  const loadFromHistory = (session: HistorySession) => {
+    setUseCase(session.useCase);
+    setSystemPromptLocal(session.systemPrompt);
+    setUserPromptLocal(session.userPrompt);
+    setExamples(session.examples.length > 0 ? session.examples : [{ id: '1', input: '', output: '' }]);
+    setCurrentSessionId(session.id);
+    setVersions([]);
+    setCurrentVersionIndex(-1);
+    setTestResult(null);
+    setFeedback('');
+    setShowHistory(false);
+  };
+
+  // Delete a session from history
+  const deleteFromHistory = (id: string) => {
+    setHistory(prev => prev.filter(s => s.id !== id));
+    if (currentSessionId === id) {
+      setCurrentSessionId(null);
+    }
+    // Also update localStorage if history becomes empty
+    if (history.length === 1) {
+      localStorage.removeItem(HISTORY_STORAGE_KEY);
+    }
+  };
+
+  // Start a new session
+  const startNewSession = () => {
+    setUseCase('');
+    setSystemPromptLocal('');
+    setUserPromptLocal('');
+    setExamples([{ id: '1', input: '', output: '' }]);
+    setCurrentSessionId(null);
+    setVersions([]);
+    setCurrentVersionIndex(-1);
+    setTestResult(null);
+    setFeedback('');
+    setTestInput('');
+  };
 
   // Add example
   const addExample = () => {
@@ -82,6 +196,9 @@ export default function RefinePage() {
     };
     setVersions(prev => [...prev, newVersion]);
     setCurrentVersionIndex(versions.length);
+    
+    // Also save to persistent history
+    setTimeout(() => saveToHistory(), 100);
   };
 
   // Revert to a specific version
@@ -247,13 +364,115 @@ export default function RefinePage() {
           <h1 className="text-3xl font-bold">Prompt Refinement Studio</h1>
           <p className="text-slate-600 mt-1">Create and refine prompts with AI assistance</p>
         </div>
-        <button
-          onClick={() => router.push('/configure')}
-          className="px-4 py-2 text-slate-600 hover:text-slate-900"
-        >
-          ← Back to Configure
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 ${
+              showHistory ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+            History {history.length > 0 && `(${history.length})`}
+          </button>
+          <button
+            onClick={startNewSession}
+            className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 5v14"/>
+              <path d="M5 12h14"/>
+            </svg>
+            New
+          </button>
+          <button
+            onClick={() => router.push('/configure')}
+            className="px-4 py-2 text-slate-600 hover:text-slate-900"
+          >
+            ← Back to Configure
+          </button>
+        </div>
       </div>
+
+      {/* History Panel */}
+      {showHistory && (
+        <div className="mb-6 bg-white rounded-xl border border-slate-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Session History</h2>
+            <button
+              onClick={() => setShowHistory(false)}
+              className="text-slate-400 hover:text-slate-600"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6 6 18"/>
+                <path d="m6 6 12 12"/>
+              </svg>
+            </button>
+          </div>
+          
+          {history.length === 0 ? (
+            <p className="text-slate-500 text-sm">No saved sessions yet. Generate prompts to create your first session.</p>
+          ) : (
+            <div className="space-y-3 max-h-80 overflow-y-auto">
+              {history.map((session) => (
+                <div
+                  key={session.id}
+                  className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+                    currentSessionId === session.id
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                  }`}
+                  onClick={() => loadFromHistory(session)}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-slate-900 truncate">{session.name}</h3>
+                      <p className="text-sm text-slate-500 mt-1 line-clamp-2">
+                        {session.useCase || 'No description'}
+                      </p>
+                      <div className="flex items-center gap-4 mt-2 text-xs text-slate-400">
+                        <span>Created: {new Date(session.createdAt).toLocaleDateString()}</span>
+                        <span>Updated: {new Date(session.updatedAt).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm('Delete this session?')) {
+                          deleteFromHistory(session.id);
+                        }
+                      }}
+                      className="ml-3 p-1 text-slate-400 hover:text-red-500"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 6h18"/>
+                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                      </svg>
+                    </button>
+                  </div>
+                  {(session.systemPrompt || session.userPrompt) && (
+                    <div className="mt-3 pt-3 border-t border-slate-100">
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <span className="text-slate-500">System Prompt:</span>
+                          <p className="text-slate-700 truncate mt-0.5">{session.systemPrompt || 'Not set'}</p>
+                        </div>
+                        <div>
+                          <span className="text-slate-500">User Prompt:</span>
+                          <p className="text-slate-700 truncate mt-0.5">{session.userPrompt || 'Not set'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Column - Input */}

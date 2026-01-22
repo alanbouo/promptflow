@@ -66,6 +66,9 @@ function buildPrompt(userPrompts: string[], dataItem: string, previousOutput?: s
   return result.trim();
 }
 
+// Default timeout for LLM API calls (2 minutes for reasoning models)
+const LLM_TIMEOUT_MS = 120000;
+
 /**
  * Call OpenAI-compatible API (works for OpenAI and xAI)
  */
@@ -78,37 +81,50 @@ async function callOpenAICompatible(
   temperature: number,
   maxTokens: number
 ): Promise<LLMResponse> {
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage },
-      ],
-      temperature,
-      max_tokens: maxTokens,
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`API error (${response.status}): ${errorText}`);
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage },
+        ],
+        temperature,
+        max_tokens: maxTokens,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API error (${response.status}): ${errorText}`);
+    }
+
+    const data = await response.json();
+    
+    return {
+      output: data.choices[0]?.message?.content || '',
+      tokenUsage: {
+        prompt: data.usage?.prompt_tokens || 0,
+        completion: data.usage?.completion_tokens || 0,
+      },
+    };
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`LLM API request timed out after ${LLM_TIMEOUT_MS / 1000}s. The API may be slow or unreachable.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  const data = await response.json();
-  
-  return {
-    output: data.choices[0]?.message?.content || '',
-    tokenUsage: {
-      prompt: data.usage?.prompt_tokens || 0,
-      completion: data.usage?.completion_tokens || 0,
-    },
-  };
 }
 
 /**
@@ -122,38 +138,51 @@ async function callAnthropic(
   temperature: number,
   maxTokens: number
 ): Promise<LLMResponse> {
-  const response = await fetch(API_ENDPOINTS.anthropic, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: maxTokens,
-      system: systemPrompt,
-      messages: [
-        { role: 'user', content: userMessage },
-      ],
-      temperature,
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Anthropic API error (${response.status}): ${errorText}`);
+  try {
+    const response = await fetch(API_ENDPOINTS.anthropic, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        system: systemPrompt,
+        messages: [
+          { role: 'user', content: userMessage },
+        ],
+        temperature,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Anthropic API error (${response.status}): ${errorText}`);
+    }
+
+    const data = await response.json();
+    
+    return {
+      output: data.content[0]?.text || '',
+      tokenUsage: {
+        prompt: data.usage?.input_tokens || 0,
+        completion: data.usage?.output_tokens || 0,
+      },
+    };
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`Anthropic API request timed out after ${LLM_TIMEOUT_MS / 1000}s. The API may be slow or unreachable.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  const data = await response.json();
-  
-  return {
-    output: data.content[0]?.text || '',
-    tokenUsage: {
-      prompt: data.usage?.input_tokens || 0,
-      completion: data.usage?.output_tokens || 0,
-    },
-  };
 }
 
 /**

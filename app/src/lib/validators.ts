@@ -15,8 +15,8 @@ export function validateSystemPrompt(systemPrompt: string): ValidationResult {
     errors.push('System prompt cannot be empty');
   }
   
-  if (systemPrompt.length > 1000) {
-    errors.push('System prompt is too long (max 1000 characters)');
+  if (systemPrompt.length > 10000) {
+    errors.push('System prompt is too long (max 10000 characters)');
   }
   
   return {
