@@ -215,4 +215,44 @@ auth.get('/me', authMiddleware, async (c) => {
   }
 });
 
+// POST /auth/exchange-token - Exchange NextAuth session for backend JWT (internal use only)
+auth.post('/exchange-token', async (c) => {
+  try {
+    // Verify internal secret to ensure this is from our frontend server
+    const internalSecret = c.req.header('X-Internal-Secret');
+    const expectedSecret = process.env.INTERNAL_API_SECRET;
+    
+    if (!expectedSecret || internalSecret !== expectedSecret) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const { userId, email, role } = await c.req.json();
+
+    if (!userId || !email) {
+      return c.json({ error: 'Missing required fields' }, 400);
+    }
+
+    // Verify user exists in database
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    if (!user || user.email !== email) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    // Generate token
+    const token = await signToken({
+      id: user.id,
+      email: user.email,
+      role: user.role
+    });
+
+    return c.json({ token });
+  } catch (error) {
+    console.error('Exchange token error:', error);
+    return c.json({ error: 'Failed to exchange token' }, 500);
+  }
+});
+
 export default auth;
