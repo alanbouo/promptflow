@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import apiClient from '@/lib/api-client';
 
 const errorMessages: Record<string, string> = {
   Configuration: 'Server configuration error. Please contact support.',
@@ -33,6 +34,7 @@ function LoginForm() {
     setIsLoading(true);
 
     try {
+      // First, authenticate with NextAuth for session management
       const result = await signIn('credentials', {
         email,
         password,
@@ -42,6 +44,12 @@ function LoginForm() {
       if (result?.error) {
         setError(result.error);
       } else {
+        // Also authenticate with backend API to get JWT token for API calls
+        const backendResult = await apiClient.login(email, password);
+        if (backendResult.error) {
+          console.warn('Backend login failed, but NextAuth succeeded:', backendResult.error);
+        }
+        
         router.push('/');
         router.refresh();
       }
