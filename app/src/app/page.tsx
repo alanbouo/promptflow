@@ -140,7 +140,7 @@ export default function Home() {
             <p className="text-sm text-slate-500">Your latest processing jobs</p>
           </div>
           <Link 
-            href="/output" 
+            href="/history" 
             className="text-sm font-medium text-blue-600 hover:underline"
           >
             View all
