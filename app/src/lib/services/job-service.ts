@@ -2,6 +2,7 @@ import { useConfigStore } from '../../store/config-store';
 import { useInputStore } from '../../store/input-store';
 import { useJobStore } from '../../store/job-store';
 import { CreateJobRequest, Job, JobSummary, JobConfig } from '../types/job';
+import apiClient from '../api-client';
 
 interface TemplateConfig {
   id: string;
@@ -52,20 +53,13 @@ export const JobService = {
       };
       
       // Submit job to API
-      const response = await fetch('/api/jobs', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(jobRequest)
-      });
+      const result = await apiClient.createJob(jobRequest);
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create job');
+      if (result.error || !result.data) {
+        throw new Error(result.error || 'Failed to create job');
       }
       
-      const data = await response.json();
+      const data = result.data;
       
       // Add job to store
       const jobSummary: JobSummary = {
@@ -121,20 +115,13 @@ export const JobService = {
       };
       
       // Submit job to API
-      const response = await fetch('/api/jobs', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(jobRequest)
-      });
+      const result = await apiClient.createJob(jobRequest);
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create job');
+      if (result.error || !result.data) {
+        throw new Error(result.error || 'Failed to create job');
       }
       
-      const data = await response.json();
+      const data = result.data;
       
       // Add job to store
       const jobSummary: JobSummary = {
@@ -167,14 +154,13 @@ export const JobService = {
       jobStore.setIsLoading(true);
       jobStore.setError(null);
       
-      const response = await fetch(`/api/jobs/${id}`);
+      const result = await apiClient.getJob(id);
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch job');
+      if (result.error || !result.data) {
+        throw new Error(result.error || 'Failed to fetch job');
       }
       
-      const job = await response.json();
+      const job = result.data;
       jobStore.setCurrentJob(job);
       jobStore.setCurrentJobId(id);
       
@@ -196,14 +182,13 @@ export const JobService = {
       const jobStore = useJobStore.getState();
       jobStore.setIsLoadingJobs(true);
       
-      const response = await fetch('/api/jobs');
+      const result = await apiClient.getJobs();
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch jobs');
+      if (result.error || !result.data) {
+        throw new Error(result.error || 'Failed to fetch jobs');
       }
       
-      const jobs = await response.json();
+      const jobs = result.data;
       jobStore.setJobs(jobs);
       
       return jobs;
@@ -222,13 +207,10 @@ export const JobService = {
     try {
       const jobStore = useJobStore.getState();
       
-      const response = await fetch(`/api/jobs/${id}`, {
-        method: 'DELETE'
-      });
+      const result = await apiClient.deleteJob(id);
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to cancel job');
+      if (result.error) {
+        throw new Error(result.error || 'Failed to cancel job');
       }
       
       // Update job status in store
