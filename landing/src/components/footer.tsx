@@ -42,7 +42,7 @@ export function Footer() {
         </div>
 
         <div className="mt-12 pt-8 border-t flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} PromptFlow. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} PromptFlow. Built by <a href="https://alanbouo.com" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors underline">Alan Bouo</a>.</p>
           <div className="flex gap-6">
             <a href="#" className="hover:text-foreground transition-colors">Privacy Policy</a>
             <a href="#" className="hover:text-foreground transition-colors">Terms of Service</a>

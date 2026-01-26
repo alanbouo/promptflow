@@ -14,7 +14,7 @@ export function Hero() {
           {/* Badge */}
           <div className="mb-8 inline-flex items-center gap-2 rounded-full border bg-muted/50 px-4 py-1.5 text-sm">
             <Sparkles className="h-4 w-4 text-primary" />
-            <span>Powered by n8n workflows</span>
+            <span>AI-powered batch processing</span>
           </div>
 
           {/* Headline */}
