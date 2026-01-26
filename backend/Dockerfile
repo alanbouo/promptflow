@@ -1,5 +1,8 @@
 FROM node:20-alpine AS base
 
+# Install OpenSSL for Prisma
+RUN apk add --no-cache openssl
+
 # Install dependencies only when needed
 FROM base AS deps
 WORKDIR /app
@@ -23,6 +26,7 @@ RUN npm run build
 FROM base AS runner
 WORKDIR /app
 
+# OpenSSL is inherited from base
 ENV NODE_ENV=production
 
 RUN addgroup --system --gid 1001 nodejs
