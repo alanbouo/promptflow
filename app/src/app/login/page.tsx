@@ -1,16 +1,31 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+
+const errorMessages: Record<string, string> = {
+  Configuration: 'Server configuration error. Please contact support.',
+  AccessDenied: 'Access denied. You do not have permission to sign in.',
+  Verification: 'The verification link has expired or has already been used.',
+  Default: 'An error occurred during sign in. Please try again.',
+};
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const urlError = searchParams.get('error');
+    if (urlError) {
+      setError(errorMessages[urlError] || errorMessages.Default);
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

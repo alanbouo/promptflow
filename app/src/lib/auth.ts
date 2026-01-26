@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import prisma from './db';
 
 export const authOptions: NextAuthOptions = {
+  debug: process.env.NODE_ENV === 'development',
   providers: [
     CredentialsProvider({
       name: 'credentials',
@@ -12,30 +13,43 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Password', type: 'password' }
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error('Email and password are required');
+        try {
+          console.log('[NextAuth] authorize called with email:', credentials?.email);
+          
+          if (!credentials?.email || !credentials?.password) {
+            console.log('[NextAuth] Missing credentials');
+            throw new Error('Email and password are required');
+          }
+
+          console.log('[NextAuth] Looking up user in database...');
+          const user = await prisma.user.findUnique({
+            where: { email: credentials.email }
+          });
+
+          if (!user) {
+            console.log('[NextAuth] User not found');
+            throw new Error('Invalid email or password');
+          }
+
+          console.log('[NextAuth] User found, checking password...');
+          const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
+
+          if (!isPasswordValid) {
+            console.log('[NextAuth] Invalid password');
+            throw new Error('Invalid email or password');
+          }
+
+          console.log('[NextAuth] Login successful for user:', user.id);
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role
+          };
+        } catch (error) {
+          console.error('[NextAuth] authorize error:', error);
+          throw error;
         }
-
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email }
-        });
-
-        if (!user) {
-          throw new Error('Invalid email or password');
-        }
-
-        const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
-
-        if (!isPasswordValid) {
-          throw new Error('Invalid email or password');
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role
-        };
       }
     })
   ],
