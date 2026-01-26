@@ -21,6 +21,16 @@ model User {
   updatedAt     DateTime  @updatedAt
   templates     Template[]
   jobs          Job[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
 
 model Template {

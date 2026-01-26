@@ -3,7 +3,7 @@
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
-import { User, LogOut, ChevronDown } from 'lucide-react';
+import { Settings, LogOut, ChevronDown } from 'lucide-react';
 
 export default function UserMenu() {
   const { data: session, status } = useSession();
@@ -71,6 +71,15 @@ export default function UserMenu() {
               </span>
             )}
           </div>
+          
+          <Link
+            href="/settings"
+            onClick={() => setIsOpen(false)}
+            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+          >
+            <Settings className="h-4 w-4" />
+            Settings
+          </Link>
           
           <button
             onClick={() => {
