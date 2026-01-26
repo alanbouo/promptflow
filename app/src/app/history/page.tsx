@@ -29,7 +29,7 @@ export default function HistoryPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed': return 'bg-green-100 text-green-700';
-      case 'processing': return 'bg-blue-100 text-blue-700';
+      case 'running': return 'bg-blue-100 text-blue-700';
       case 'failed': return 'bg-red-100 text-red-700';
       case 'cancelled': return 'bg-slate-100 text-slate-700';
       default: return 'bg-yellow-100 text-yellow-700';
@@ -53,7 +53,7 @@ export default function HistoryPage() {
   const statusCounts = {
     all: jobs.length,
     completed: jobs.filter(j => j.status === 'completed').length,
-    processing: jobs.filter(j => j.status === 'processing').length,
+    running: jobs.filter(j => j.status === 'running').length,
     failed: jobs.filter(j => j.status === 'failed').length,
     pending: jobs.filter(j => j.status === 'pending').length,
   };
@@ -71,7 +71,7 @@ export default function HistoryPage() {
         {[
           { key: 'all', label: 'All' },
           { key: 'completed', label: 'Completed' },
-          { key: 'processing', label: 'Processing' },
+          { key: 'running', label: 'Running' },
           { key: 'pending', label: 'Pending' },
           { key: 'failed', label: 'Failed' },
         ].map(({ key, label }) => (
