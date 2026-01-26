@@ -1,120 +1,174 @@
 # Deploying PromptFlow to Coolify
 
-## Prerequisites
+This guide covers deploying the separated frontend/backend architecture to Coolify.
 
-1. A Coolify server with access to your Git repository
-2. n8n server already running (e.g., `https://n8n-1.alanbouo.com`)
-3. Domain configured for the app (e.g., `promptflow.alanbouo.com`)
+## Architecture Overview
 
-## Deployment Steps
-
-### 1. Push to Git Repository
-
-Make sure your code is pushed to a Git repository that Coolify can access:
-
-```bash
-cd /Volumes/Macintosh_HD/Users/alanbouo/albou/2025/promptflow
-git add .
-git commit -m "Add Coolify deployment configuration"
-git push origin main
+```
+promptflow.run          → Landing Page (port 3001)
+app.promptflow.run      → Frontend App (port 3000)
+api.promptflow.run      → Backend API (port 4000)
+PostgreSQL              → Database (port 5432)
 ```
 
-### 2. Create New Application in Coolify
+## Prerequisites
 
-1. Log in to your Coolify dashboard
-2. Go to **Projects** → Select your project (or create new)
-3. Click **+ New** → **Application**
-4. Select **Docker** as the build pack
-5. Connect your Git repository
-6. Set the **Base Directory** to `/app` (since the Next.js app is in the `app/` folder)
+1. Coolify server with access to your Git repository
+2. PostgreSQL database (can be deployed via Coolify)
+3. Domains configured:
+   - `promptflow.run` (landing page)
+   - `app.promptflow.run` (frontend)
+   - `api.promptflow.run` (backend API)
 
-### 3. Configure Build Settings
+---
 
-In Coolify's application settings:
+## Option A: Deploy as Separate Services (Recommended)
 
-- **Build Pack**: Docker
-- **Dockerfile Location**: `Dockerfile` (relative to base directory)
-- **Port**: `3000`
+### Step 1: Deploy PostgreSQL Database
 
-### 4. Configure Environment Variables
+1. In Coolify: **+ New** → **Database** → **PostgreSQL**
+2. Configure:
+   - **Name**: `promptflow-db`
+   - **Database**: `promptflow`
+   - **Username**: `promptflow`
+   - **Password**: Generate a secure password
+3. Note the internal connection URL: `postgresql://promptflow:PASSWORD@promptflow-db:5432/promptflow`
 
-Add these environment variables in Coolify:
+### Step 2: Deploy Backend API
+
+1. **+ New** → **Application** → **Docker**
+2. Connect your Git repository
+3. Configure:
+   - **Base Directory**: `backend`
+   - **Dockerfile**: `Dockerfile`
+   - **Port**: `4000`
+4. **Environment Variables**:
 
 | Variable | Value |
 |----------|-------|
-| `DATABASE_URL` | `file:/app/data/promptflow.db` |
-| `NEXT_PUBLIC_APP_URL` | `https://promptflow.alanbouo.com` |
-| `N8N_WEBHOOK_SINGLE` | `https://n8n-1.alanbouo.com/webhook/process-single_YOUR_WEBHOOK_ID` |
-| `N8N_WEBHOOK_BATCH` | `https://n8n-1.alanbouo.com/webhook/process-batch_YOUR_WEBHOOK_ID` |
-| `N8N_WEBHOOK_AUTH_TOKEN` | Your Bearer token for n8n webhook authentication |
+| `DATABASE_URL` | `postgresql://promptflow:PASSWORD@promptflow-db:5432/promptflow` |
+| `JWT_SECRET` | Generate: `openssl rand -base64 32` |
+| `OPENAI_API_KEY` | `sk-...` |
+| `ANTHROPIC_API_KEY` | `sk-ant-...` (optional) |
+| `XAI_API_KEY` | `xai-...` (optional) |
+| `RESEND_API_KEY` | `re_...` (for password reset emails) |
+| `EMAIL_FROM` | `PromptFlow <noreply@promptflow.run>` |
+| `FRONTEND_URL` | `https://app.promptflow.run` |
+| `PORT` | `4000` |
 
-### 5. Configure Persistent Storage
+5. **Domain**: `api.promptflow.run` with HTTPS
+6. Deploy and run database migration:
+   ```bash
+   docker exec -it <container_id> npx prisma db push
+   ```
 
-To persist the SQLite database across deployments:
+### Step 3: Deploy Frontend App
 
-1. Go to **Storages** in your application settings
-2. Add a new volume:
-   - **Source**: `/data/promptflow` (or any path on host)
-   - **Destination**: `/app/data`
+1. **+ New** → **Application** → **Docker**
+2. Connect your Git repository
+3. Configure:
+   - **Base Directory**: `app`
+   - **Dockerfile**: `Dockerfile.standalone`
+   - **Port**: `3000`
+4. **Build Arguments** (required for Next.js):
 
-### 6. Configure Domain
+| Argument | Value |
+|----------|-------|
+| `NEXT_PUBLIC_API_URL` | `https://api.promptflow.run` |
+| `NEXT_PUBLIC_APP_URL` | `https://app.promptflow.run` |
 
-1. Go to **Domains** in your application settings
-2. Add your domain: `promptflow.alanbouo.com`
-3. Enable HTTPS (Let's Encrypt)
+5. **Domain**: `app.promptflow.run` with HTTPS
+6. Deploy
 
-### 7. Deploy
+### Step 4: Deploy Landing Page
 
-Click **Deploy** to build and start the application.
+1. **+ New** → **Application** → **Docker**
+2. Connect your Git repository
+3. Configure:
+   - **Base Directory**: `landing`
+   - **Dockerfile**: `Dockerfile`
+   - **Port**: `3000`
+4. **Build Arguments**:
 
-## Post-Deployment
+| Argument | Value |
+|----------|-------|
+| `NEXT_PUBLIC_APP_URL` | `https://app.promptflow.run` |
 
-### Initialize Database
+5. **Domain**: `promptflow.run` with HTTPS
+6. Deploy
 
-After first deployment, you may need to run Prisma migrations. You can do this via Coolify's terminal or by adding a startup script:
+---
 
-```bash
-# In Coolify terminal or via SSH
-docker exec -it <container_id> npx prisma db push
-```
+## Option B: Deploy with Docker Compose
 
-### Verify n8n Connection
+Use the provided `docker-compose.coolify.yml` for a single-stack deployment.
 
-Test that the app can reach your n8n webhooks:
+1. In Coolify: **+ New** → **Docker Compose**
+2. Connect your Git repository
+3. Set **Docker Compose File**: `docker-compose.coolify.yml`
+4. Configure environment variables in Coolify's UI
+5. Deploy
 
-```bash
-curl -X POST https://n8n-1.alanbouo.com/webhook/process-single_4FEjn96sNr06KFE8KoiY3IwQMJxsMEFksAb7ntsurSA= \
-  -H "Content-Type: application/json" \
-  -H "promptflow: YOUR_AUTH_TOKEN" \
-  -d '{"jobId": "test", "systemPrompt": "Test", "userPrompts": ["Hello {input}"], "settings": {}, "dataItem": "World"}'
-```
-
-## Troubleshooting
-
-### Build Fails
-
-1. Check that `next.config.js` has `output: 'standalone'`
-2. Verify Dockerfile is in the `app/` directory
-3. Check Coolify build logs for specific errors
-
-### Database Errors
-
-1. Ensure the `/app/data` directory exists and is writable
-2. Check that the volume is properly mounted
-3. Run `npx prisma db push` to create tables
-
-### n8n Connection Issues
-
-1. Verify `N8N_WEBHOOK_URL` is correct
-2. Check n8n webhook authentication settings
-3. Ensure n8n workflows are activated
+---
 
 ## Environment Variables Reference
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `DATABASE_URL` | SQLite database path | `file:/app/data/promptflow.db` |
-| `NEXT_PUBLIC_APP_URL` | Public URL of the app | `https://promptflow.alanbouo.com` |
-| `N8N_WEBHOOK_SINGLE` | Full URL for single item processing webhook | `https://n8n-1.alanbouo.com/webhook/process-single_abc123` |
-| `N8N_WEBHOOK_BATCH` | Full URL for batch processing webhook | `https://n8n-1.alanbouo.com/webhook/process-batch_xyz789` |
-| `N8N_WEBHOOK_AUTH_TOKEN` | Bearer token for n8n webhook authorization | `DlCqTUW7xL2d+Rte4D+B0A68+aEU55hN44hWfSwC/Ls=` |
+### Backend (`api.promptflow.run`)
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `JWT_SECRET` | Yes | Secret for JWT signing (min 32 chars) |
+| `OPENAI_API_KEY` | Yes | OpenAI API key |
+| `ANTHROPIC_API_KEY` | No | Anthropic API key |
+| `XAI_API_KEY` | No | xAI API key |
+| `RESEND_API_KEY` | No | Resend API key for emails |
+| `EMAIL_FROM` | No | From address for emails |
+| `FRONTEND_URL` | Yes | Frontend URL for CORS |
+| `PORT` | No | Server port (default: 4000) |
+
+### Frontend (`app.promptflow.run`)
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NEXT_PUBLIC_API_URL` | Yes | Backend API URL |
+| `NEXT_PUBLIC_APP_URL` | Yes | Frontend public URL |
+
+### Landing (`promptflow.run`)
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NEXT_PUBLIC_APP_URL` | Yes | Link to main app |
+
+---
+
+## Post-Deployment Checklist
+
+- [ ] Database migrations applied (`npx prisma db push`)
+- [ ] Backend health check: `curl https://api.promptflow.run/health`
+- [ ] Frontend loads correctly
+- [ ] User registration works
+- [ ] Login/logout works
+- [ ] Job creation works
+
+## Troubleshooting
+
+### Backend won't start
+1. Check `DATABASE_URL` is correct
+2. Verify PostgreSQL is running and accessible
+3. Check logs: `docker logs <container_id>`
+
+### Frontend can't reach backend
+1. Verify `NEXT_PUBLIC_API_URL` is set correctly
+2. Check CORS: `FRONTEND_URL` in backend must match frontend domain
+3. Test API directly: `curl https://api.promptflow.run/health`
+
+### Build fails
+1. Ensure `next.config.js` has `output: 'standalone'`
+2. Check Dockerfile path is correct
+3. Review build logs in Coolify
+
+### Database connection errors
+1. Verify PostgreSQL container is healthy
+2. Check connection string format
+3. Ensure database exists: `docker exec -it <pg_container> psql -U promptflow -c '\l'`

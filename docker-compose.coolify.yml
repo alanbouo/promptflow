@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-promptflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-promptflow}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-promptflow}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API (Hono)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-promptflow}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-promptflow}
+      - JWT_SECRET=${JWT_SECRET}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - XAI_API_KEY=${XAI_API_KEY}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - EMAIL_FROM=${EMAIL_FROM:-PromptFlow <noreply@promptflow.run>}
+      - FRONTEND_URL=${FRONTEND_URL:-https://app.promptflow.run}
+      - PORT=4000
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Frontend App (Next.js)
+  frontend:
+    build:
+      context: ./app
+      dockerfile: Dockerfile.standalone
+    environment:
+      - NEXT_PUBLIC_API_URL=${BACKEND_URL:-https://api.promptflow.run}
+      - NEXT_PUBLIC_APP_URL=${FRONTEND_URL:-https://app.promptflow.run}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # Landing Page (Next.js)
+  landing:
+    build:
+      context: ./landing
+      dockerfile: Dockerfile
+    environment:
+      - NEXT_PUBLIC_APP_URL=${FRONTEND_URL:-https://app.promptflow.run}
+    ports:
+      - "3001:3000"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
