@@ -22,6 +22,9 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Generate Prisma client before build (required for NextAuth)
+RUN npx prisma generate
+
 RUN npm run build
 
 # Production image
