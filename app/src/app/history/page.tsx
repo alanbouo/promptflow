@@ -166,8 +166,8 @@ export default function HistoryPage() {
             <p className="text-sm text-slate-500">Completed</p>
           </div>
           <div className="bg-white rounded-lg border border-slate-200 p-4">
-            <p className="text-2xl font-bold text-blue-600">{statusCounts.processing}</p>
-            <p className="text-sm text-slate-500">Processing</p>
+            <p className="text-2xl font-bold text-blue-600">{statusCounts.running}</p>
+            <p className="text-sm text-slate-500">Running</p>
           </div>
           <div className="bg-white rounded-lg border border-slate-200 p-4">
             <p className="text-2xl font-bold text-slate-900">
