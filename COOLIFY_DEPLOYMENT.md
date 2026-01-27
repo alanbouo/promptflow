@@ -5,7 +5,7 @@ This guide covers deploying the separated frontend/backend architecture to Cooli
 ## Architecture Overview
 
 ```
-promptflow.run          → Landing Page (port 3001)
+promptflow.run          → Landing Page (port 3000)
 app.promptflow.run      → Frontend App (port 3000)
 api.promptflow.run      → Backend API (port 4000)
 PostgreSQL              → Database (port 5432)
@@ -48,6 +48,7 @@ PostgreSQL              → Database (port 5432)
 |----------|-------|
 | `DATABASE_URL` | `postgresql://promptflow:PASSWORD@promptflow-db:5432/promptflow` |
 | `JWT_SECRET` | Generate: `openssl rand -base64 32` |
+| `INTERNAL_API_SECRET` | Generate: `openssl rand -base64 32` (shared with frontend) |
 | `OPENAI_API_KEY` | `sk-...` |
 | `ANTHROPIC_API_KEY` | `sk-ant-...` (optional) |
 | `XAI_API_KEY` | `xai-...` (optional) |
@@ -77,8 +78,23 @@ PostgreSQL              → Database (port 5432)
 | `NEXT_PUBLIC_API_URL` | `https://api.promptflow.run` |
 | `NEXT_PUBLIC_APP_URL` | `https://app.promptflow.run` |
 
-5. **Domain**: `app.promptflow.run` with HTTPS
-6. Deploy
+5. **Environment Variables** (runtime):
+
+| Variable | Value |
+|----------|-------|
+| `NEXTAUTH_SECRET` | Generate: `openssl rand -base64 32` |
+| `NEXTAUTH_URL` | `https://app.promptflow.run` |
+| `INTERNAL_API_SECRET` | Same value as backend's `INTERNAL_API_SECRET` |
+| `DATABASE_URL` | Same PostgreSQL connection string as backend |
+| `OPENAI_API_KEY` | `sk-...` (for direct LLM calls) |
+| `ANTHROPIC_API_KEY` | `sk-ant-...` (optional) |
+| `XAI_API_KEY` | `xai-...` (optional) |
+| `N8N_WEBHOOK_SINGLE` | n8n webhook URL for single processing (optional) |
+| `N8N_WEBHOOK_BATCH` | n8n webhook URL for batch processing (optional) |
+| `N8N_WEBHOOK_AUTH_TOKEN` | n8n webhook auth token (optional) |
+
+6. **Domain**: `app.promptflow.run` with HTTPS
+7. Deploy
 
 ### Step 4: Deploy Landing Page
 
@@ -119,6 +135,7 @@ Use the provided `docker-compose.coolify.yml` for a single-stack deployment.
 |----------|----------|-------------|
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
 | `JWT_SECRET` | Yes | Secret for JWT signing (min 32 chars) |
+| `INTERNAL_API_SECRET` | Yes | Shared secret for frontend-backend token exchange |
 | `OPENAI_API_KEY` | Yes | OpenAI API key |
 | `ANTHROPIC_API_KEY` | No | Anthropic API key |
 | `XAI_API_KEY` | No | xAI API key |
@@ -131,14 +148,59 @@ Use the provided `docker-compose.coolify.yml` for a single-stack deployment.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `NEXT_PUBLIC_API_URL` | Yes | Backend API URL |
-| `NEXT_PUBLIC_APP_URL` | Yes | Frontend public URL |
+| `NEXT_PUBLIC_API_URL` | Yes | Backend API URL (build arg) |
+| `NEXT_PUBLIC_APP_URL` | Yes | Frontend public URL (build arg) |
+| `NEXTAUTH_SECRET` | Yes | Secret for NextAuth session encryption |
+| `NEXTAUTH_URL` | Yes | Frontend URL for NextAuth callbacks |
+| `INTERNAL_API_SECRET` | Yes | Shared secret (must match backend) |
+| `DATABASE_URL` | Yes | PostgreSQL connection string (for NextAuth) |
+| `OPENAI_API_KEY` | Yes | OpenAI API key for direct LLM calls |
+| `ANTHROPIC_API_KEY` | No | Anthropic API key |
+| `XAI_API_KEY` | No | xAI API key |
+| `N8N_WEBHOOK_SINGLE` | No | n8n webhook URL for single item processing |
+| `N8N_WEBHOOK_BATCH` | No | n8n webhook URL for batch processing |
+| `N8N_WEBHOOK_AUTH_TOKEN` | No | Bearer token for n8n webhook auth |
 
 ### Landing (`promptflow.run`)
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `NEXT_PUBLIC_APP_URL` | Yes | Link to main app |
+
+---
+
+## Option C: Deploy with n8n (Optional)
+
+If you want to use n8n for workflow processing instead of direct LLM calls:
+
+### Step 1: Deploy n8n
+
+1. **+ New** → **Application** → **Docker Image**
+2. Use image: `n8nio/n8n:latest`
+3. Configure:
+   - **Port**: `5678`
+4. **Environment Variables**:
+
+| Variable | Value |
+|----------|-------|
+| `N8N_BASIC_AUTH_ACTIVE` | `true` |
+| `N8N_BASIC_AUTH_USER` | `admin` |
+| `N8N_BASIC_AUTH_PASSWORD` | Generate a secure password |
+| `WEBHOOK_URL` | `https://n8n.promptflow.run` |
+
+5. **Domain**: `n8n.promptflow.run` with HTTPS
+6. **Volumes**: Mount `/home/node/.n8n` for persistence
+7. Deploy and import workflows from `n8n/workflows/`
+
+### Step 2: Configure Frontend for n8n
+
+Add these environment variables to the frontend:
+
+| Variable | Value |
+|----------|-------|
+| `N8N_WEBHOOK_SINGLE` | `https://n8n.promptflow.run/webhook/process-single` |
+| `N8N_WEBHOOK_BATCH` | `https://n8n.promptflow.run/webhook/process-batch` |
+| `N8N_WEBHOOK_AUTH_TOKEN` | Your n8n webhook auth token |
 
 ---
 
@@ -172,3 +234,14 @@ Use the provided `docker-compose.coolify.yml` for a single-stack deployment.
 1. Verify PostgreSQL container is healthy
 2. Check connection string format
 3. Ensure database exists: `docker exec -it <pg_container> psql -U promptflow -c '\l'`
+
+### NextAuth/Authentication issues
+1. Verify `NEXTAUTH_SECRET` is set and matches across restarts
+2. Ensure `NEXTAUTH_URL` matches the frontend domain exactly
+3. Check `INTERNAL_API_SECRET` is identical on both frontend and backend
+4. Verify `DATABASE_URL` is accessible from the frontend container
+
+### Token exchange fails
+1. Check backend logs for "Unauthorized" errors on `/auth/exchange-token`
+2. Verify `INTERNAL_API_SECRET` matches between frontend and backend
+3. Ensure the user exists in the database
