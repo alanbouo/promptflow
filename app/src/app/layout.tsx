@@ -1,16 +1,25 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, JetBrains_Mono } from 'next/font/google';
 import Link from 'next/link';
+import { Zap } from 'lucide-react';
 import './globals.css';
 import ErrorBoundary from '../components/ErrorBoundary';
 import AuthProvider from '../components/AuthProvider';
 import UserMenu from '../components/UserMenu';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({
+  variable: '--font-sans',
+  subsets: ['latin'],
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  variable: '--font-mono',
+  subsets: ['latin'],
+});
 
 export const metadata: Metadata = {
-  title: 'PromptFlow',
-  description: 'Configure prompts, process data through LLMs, and display outputs',
+  title: 'PromptFlow - AI Prompt Processing & Chaining Platform',
+  description: 'Configure prompts, process data through LLMs, and chain outputs with visual workflows. Batch processing, multiple providers, and real-time progress tracking.',
 };
 
 export default function RootLayout({
@@ -20,46 +29,44 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-slate-50 text-slate-900 min-h-screen`}>
+      <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased min-h-screen`}>
         <AuthProvider>
           {/* Header */}
-          <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white shadow-sm">
-            <div className="max-w-7xl mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+          <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+            <div className="container mx-auto flex h-16 items-center justify-between px-4">
               <div className="flex items-center">
                 <Link href="/" className="flex items-center gap-2">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white font-bold text-lg">
-                    P
-                  </div>
-                  <span className="text-xl font-bold text-slate-900">PromptFlow</span>
+                  <Zap className="h-8 w-8 text-primary" />
+                  <span className="text-xl font-bold">PromptFlow</span>
                 </Link>
-                <nav className="ml-10 flex items-center gap-1">
+                <nav className="ml-10 hidden md:flex items-center gap-1">
                   <Link 
                     href="/" 
-                    className="px-4 py-2 text-sm font-medium text-slate-600 rounded-lg transition-colors hover:bg-slate-100 hover:text-slate-900"
+                    className="px-4 py-2 text-sm font-medium text-muted-foreground rounded-lg transition-colors hover:bg-accent hover:text-foreground"
                   >
                     Dashboard
                   </Link>
                   <Link 
                     href="/configure" 
-                    className="px-4 py-2 text-sm font-medium text-slate-600 rounded-lg transition-colors hover:bg-slate-100 hover:text-slate-900"
+                    className="px-4 py-2 text-sm font-medium text-muted-foreground rounded-lg transition-colors hover:bg-accent hover:text-foreground"
                   >
                     Configure
                   </Link>
                   <Link 
                     href="/refine" 
-                    className="px-4 py-2 text-sm font-medium text-slate-600 rounded-lg transition-colors hover:bg-slate-100 hover:text-slate-900"
+                    className="px-4 py-2 text-sm font-medium text-muted-foreground rounded-lg transition-colors hover:bg-accent hover:text-foreground"
                   >
                     Refine
                   </Link>
                   <Link 
                     href="/input" 
-                    className="px-4 py-2 text-sm font-medium text-slate-600 rounded-lg transition-colors hover:bg-slate-100 hover:text-slate-900"
+                    className="px-4 py-2 text-sm font-medium text-muted-foreground rounded-lg transition-colors hover:bg-accent hover:text-foreground"
                   >
                     Input
                   </Link>
                   <Link 
                     href="/output" 
-                    className="px-4 py-2 text-sm font-medium text-slate-600 rounded-lg transition-colors hover:bg-slate-100 hover:text-slate-900"
+                    className="px-4 py-2 text-sm font-medium text-muted-foreground rounded-lg transition-colors hover:bg-accent hover:text-foreground"
                   >
                     Output
                   </Link>
@@ -70,7 +77,7 @@ export default function RootLayout({
           </header>
 
           {/* Main Content */}
-          <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+          <main className="container mx-auto py-8 px-4">
             <ErrorBoundary>
               {children}
             </ErrorBoundary>
