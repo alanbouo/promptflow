@@ -60,7 +60,7 @@ const CollapsibleSection: React.FC<{
         onClick={() => setIsOpen(!isOpen)}
         className="w-full px-4 py-3 flex items-center justify-between bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
       >
-        <span className="font-medium text-sm">{title}</span>
+        <span className="font-medium text-sm text-gray-900 dark:text-white">{title}</span>
         <svg
           className={`w-5 h-5 transition-transform ${isOpen ? 'rotate-180' : ''}`}
           fill="none"
@@ -160,7 +160,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results, isLoading }) => {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-6 overflow-hidden">
       <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Results</h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Results</h2>
         
         <div className="flex space-x-2">
           <select

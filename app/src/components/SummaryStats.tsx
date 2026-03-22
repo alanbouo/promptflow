@@ -96,17 +96,17 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({
   
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-      <h2 className="text-xl font-semibold mb-4">Summary</h2>
+      <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Summary</h2>
       
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
           <div className="text-sm text-gray-500 dark:text-gray-400">Total Items</div>
-          <div className="text-2xl font-bold">{results.length}</div>
+          <div className="text-2xl font-bold text-gray-900 dark:text-white">{results.length}</div>
         </div>
         
         <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
           <div className="text-sm text-gray-500 dark:text-gray-400">Success / Error</div>
-          <div className="text-2xl font-bold">
+          <div className="text-2xl font-bold text-gray-900 dark:text-white">
             <span className="text-green-500">{successCount}</span>
             <span className="mx-1">/</span>
             <span className="text-red-500">{errorCount}</span>
@@ -115,38 +115,38 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({
         
         <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
           <div className="text-sm text-gray-500 dark:text-gray-400">Total Runtime</div>
-          <div className="text-2xl font-bold">{calculateRuntime()}</div>
+          <div className="text-2xl font-bold text-gray-900 dark:text-white">{calculateRuntime()}</div>
         </div>
         
         <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
           <div className="text-sm text-gray-500 dark:text-gray-400">Avg. Time per Item</div>
-          <div className="text-2xl font-bold">{calculateAverageTime()}</div>
+          <div className="text-2xl font-bold text-gray-900 dark:text-white">{calculateAverageTime()}</div>
         </div>
       </div>
       
       <div className="mt-6">
-        <h3 className="text-lg font-medium mb-3">Token Usage</h3>
+        <h3 className="text-lg font-medium mb-3 text-gray-900 dark:text-white">Token Usage</h3>
         
         <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
           <div className="flex flex-wrap gap-4">
             <div>
               <div className="text-sm text-gray-500 dark:text-gray-400">Prompt Tokens</div>
-              <div className="text-xl font-semibold">{totalPromptTokens.toLocaleString('en-US')}</div>
+              <div className="text-xl font-semibold text-gray-900 dark:text-white">{totalPromptTokens.toLocaleString('en-US')}</div>
             </div>
             
             <div>
               <div className="text-sm text-gray-500 dark:text-gray-400">Completion Tokens</div>
-              <div className="text-xl font-semibold">{totalCompletionTokens.toLocaleString('en-US')}</div>
+              <div className="text-xl font-semibold text-gray-900 dark:text-white">{totalCompletionTokens.toLocaleString('en-US')}</div>
             </div>
             
             <div>
               <div className="text-sm text-gray-500 dark:text-gray-400">Total Tokens</div>
-              <div className="text-xl font-semibold">{totalTokens.toLocaleString('en-US')}</div>
+              <div className="text-xl font-semibold text-gray-900 dark:text-white">{totalTokens.toLocaleString('en-US')}</div>
             </div>
             
             <div>
               <div className="text-sm text-gray-500 dark:text-gray-400">Est. Cost ({model})</div>
-              <div className="text-xl font-semibold">{formattedCost}</div>
+              <div className="text-xl font-semibold text-gray-900 dark:text-white">{formattedCost}</div>
             </div>
           </div>
         </div>

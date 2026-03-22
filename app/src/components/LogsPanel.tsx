@@ -45,7 +45,7 @@ const LogsPanel: React.FC<LogsPanelProps> = ({ logs, isLoading }) => {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Logs</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Logs</h2>
         </div>
         <div className="flex items-center justify-center h-20">
           <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500"></div>
@@ -58,7 +58,7 @@ const LogsPanel: React.FC<LogsPanelProps> = ({ logs, isLoading }) => {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Logs</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Logs</h2>
         </div>
         <div className="text-center py-4">
           <p className="text-gray-500 dark:text-gray-400">
@@ -72,7 +72,7 @@ const LogsPanel: React.FC<LogsPanelProps> = ({ logs, isLoading }) => {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-6 overflow-hidden">
       <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Logs</h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Logs</h2>
         
         <div className="flex space-x-2">
           <select

@@ -105,14 +105,14 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
   
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-      <h2 className="text-xl font-semibold mb-4">Progress</h2>
+      <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Progress</h2>
       
       <div className="mb-4">
         <div className="flex justify-between mb-1">
-          <span className="text-sm font-medium">
+          <span className="text-sm font-medium text-gray-900 dark:text-white">
             {getStatusText()} - {progressPercentage}%
           </span>
-          <span className="text-sm font-medium">
+          <span className="text-sm font-medium text-gray-900 dark:text-white">
             {itemsCompleted} / {itemsTotal} items
           </span>
         </div>
@@ -127,12 +127,12 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
       <div className="grid grid-cols-2 gap-4 text-sm">
         <div>
           <div className="text-gray-500 dark:text-gray-400">Elapsed Time</div>
-          <div className="font-medium">{formatTime(elapsedSeconds)}</div>
+          <div className="font-medium text-gray-900 dark:text-white">{formatTime(elapsedSeconds)}</div>
         </div>
         
         <div>
           <div className="text-gray-500 dark:text-gray-400">Estimated Time Remaining</div>
-          <div className="font-medium">
+          <div className="font-medium text-gray-900 dark:text-white">
             {status === 'running' && estimatedSecondsRemaining !== null
               ? formatTime(estimatedSecondsRemaining)
               : status === 'completed'

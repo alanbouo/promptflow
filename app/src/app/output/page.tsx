@@ -113,7 +113,7 @@ function OutputPageContent() {
   return (
     <div className="max-w-4xl mx-auto pb-12">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Results</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Results</h1>
         
         <ExportButtons 
           results={results} 
@@ -171,7 +171,7 @@ function OutputPageContent() {
 
 export default function OutputPage() {
   return (
-    <Suspense fallback={<div className="max-w-4xl mx-auto pb-12"><h1 className="text-3xl font-bold mb-6">Loading...</h1></div>}>
+    <Suspense fallback={<div className="max-w-4xl mx-auto pb-12"><h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-6">Loading...</h1></div>}>
       <OutputPageContent />
     </Suspense>
   );

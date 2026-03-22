@@ -69,7 +69,7 @@ export function useJobResults(jobId: string | null): UseJobResultsReturn {
     return () => {
       stopPolling();
     };
-  }, [jobId]);
+  }, [jobId, currentJob?.status, isPolling]);
   
   // Update results when currentJob changes
   useEffect(() => {
