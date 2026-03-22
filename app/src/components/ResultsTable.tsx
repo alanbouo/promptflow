@@ -222,13 +222,13 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results, isLoading }) => {
             {processedResults.map((result, index) => (
               <React.Fragment key={index}>
                 <tr className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                     {index + 1}
                   </td>
-                  <td className="px-6 py-4 text-sm">
+                  <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
                     {truncateText(result.input)}
                   </td>
-                  <td className="px-6 py-4 text-sm">
+                  <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
                     {truncateText(result.finalOutput)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
