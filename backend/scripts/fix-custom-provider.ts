@@ -9,8 +9,8 @@ async function main() {
   for (const template of templates) {
     const settings = JSON.parse(template.settings);
     if (settings.provider === 'custom') {
-      settings.provider = 'openai';
-      settings.model = 'gpt-4';
+      settings.provider = 'xai';
+      settings.model = 'grok-4.3';
       await prisma.template.update({
         where: { id: template.id },
         data: { settings: JSON.stringify(settings) },

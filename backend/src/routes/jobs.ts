@@ -101,12 +101,18 @@ jobs.post('/', async (c) => {
     // Normalize legacy/unsupported provider values
     const SUPPORTED_PROVIDERS = ['openai', 'anthropic', 'xai'];
     const provider = body.config?.settings?.provider;
-    if (provider && !SUPPORTED_PROVIDERS.includes(provider)) {
-      body.config.settings.provider = 'openai';
-      body.config.settings.model = 'gpt-4';
-    }
-    if (!body.config?.settings?.provider) {
-      return c.json({ error: 'Missing provider in settings' }, 400);
+    if (!provider || !SUPPORTED_PROVIDERS.includes(provider)) {
+      // Fall back to whichever provider has an API key configured
+      const fallback =
+        process.env.XAI_API_KEY ? { provider: 'xai', model: 'grok-4.3' } :
+        process.env.ANTHROPIC_API_KEY ? { provider: 'anthropic', model: 'claude-3-sonnet-20240229' } :
+        process.env.OPENAI_API_KEY ? { provider: 'openai', model: 'gpt-4' } :
+        null;
+      if (!fallback) {
+        return c.json({ error: 'No LLM provider API key is configured on the server.' }, 500);
+      }
+      body.config.settings.provider = fallback.provider;
+      body.config.settings.model = fallback.model;
     }
 
     // Generate a unique ID for the job
