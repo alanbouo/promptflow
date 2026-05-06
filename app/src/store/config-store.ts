@@ -80,14 +80,15 @@ export const useConfigStore = create<ConfigState>()(
       name: 'promptflow-config',
       version: 1,
       migrate: (persisted: unknown) => {
-        const state = persisted as { settings?: { provider?: string; model?: string } };
+        const state = persisted as { settings?: Partial<ConfigSettings> };
         if (state?.settings?.provider === 'custom') {
+          const { temperature, maxTokens, batchProcessing, concurrentRequests } = state.settings;
           state.settings = {
             ...DEFAULT_SETTINGS,
-            temperature: state.settings.temperature ?? DEFAULT_SETTINGS.temperature,
-            maxTokens: state.settings.maxTokens ?? DEFAULT_SETTINGS.maxTokens,
-            batchProcessing: state.settings.batchProcessing ?? DEFAULT_SETTINGS.batchProcessing,
-            concurrentRequests: state.settings.concurrentRequests ?? DEFAULT_SETTINGS.concurrentRequests,
+            ...(temperature !== undefined && { temperature }),
+            ...(maxTokens !== undefined && { maxTokens }),
+            ...(batchProcessing !== undefined && { batchProcessing }),
+            ...(concurrentRequests !== undefined && { concurrentRequests }),
           };
         }
         return state;
