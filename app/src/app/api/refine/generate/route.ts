@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       dataItem: '',
       settings: {
         provider: process.env.DEFAULT_LLM_PROVIDER || 'xai',
-        model: process.env.DEFAULT_LLM_MODEL || 'grok-4-1-fast-reasoning',
+        model: process.env.DEFAULT_LLM_MODEL || 'grok-4.3',
         temperature: 0.7,
         maxTokens: 2000
       }

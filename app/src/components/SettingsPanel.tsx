@@ -14,7 +14,7 @@ const modelOptions: Record<string, { value: string; label: string }[]> = {
     { value: 'claude-3-haiku', label: 'Claude 3 Haiku' }
   ],
   xai: [
-    { value: 'grok-4-1-fast-reasoning', label: 'Grok 4.1 Fast (Reasoning)' },
+    { value: 'grok-4.3', label: 'Grok 4.1 Fast (Reasoning)' },
     { value: 'grok-4-1-fast-non-reasoning', label: 'Grok 4.1 Fast (Non-Reasoning)' }
   ],
   custom: [
