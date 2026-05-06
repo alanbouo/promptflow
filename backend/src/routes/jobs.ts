@@ -98,13 +98,15 @@ jobs.post('/', async (c) => {
       return c.json({ error: 'Missing required fields' }, 400);
     }
 
-    // Validate provider before creating the job
+    // Normalize legacy/unsupported provider values
     const SUPPORTED_PROVIDERS = ['openai', 'anthropic', 'xai'];
     const provider = body.config?.settings?.provider;
-    if (!provider || !SUPPORTED_PROVIDERS.includes(provider)) {
-      return c.json({
-        error: `Unsupported provider: "${provider}". Supported providers are: ${SUPPORTED_PROVIDERS.join(', ')}.`
-      }, 400);
+    if (provider && !SUPPORTED_PROVIDERS.includes(provider)) {
+      body.config.settings.provider = 'openai';
+      body.config.settings.model = 'gpt-4';
+    }
+    if (!body.config?.settings?.provider) {
+      return c.json({ error: 'Missing provider in settings' }, 400);
     }
 
     // Generate a unique ID for the job
