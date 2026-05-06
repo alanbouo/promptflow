@@ -9,7 +9,7 @@ export interface Template {
   systemPrompt: string;
   userPrompts: { id: string; content: string }[];
   settings: {
-    provider: 'openai' | 'anthropic' | 'custom';
+    provider: 'openai' | 'anthropic' | 'xai';
     model: string;
     temperature: number;
     maxTokens: number;

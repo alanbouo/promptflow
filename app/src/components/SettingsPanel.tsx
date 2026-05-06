@@ -17,9 +17,6 @@ const modelOptions: Record<string, { value: string; label: string }[]> = {
     { value: 'grok-4.3', label: 'Grok 4.1 Fast (Reasoning)' },
     { value: 'grok-4-1-fast-non-reasoning', label: 'Grok 4.1 Fast (Non-Reasoning)' }
   ],
-  custom: [
-    { value: 'custom', label: 'Custom Model (via API)' }
-  ]
 };
 
 const SettingsPanel: React.FC = () => {
@@ -54,7 +51,6 @@ const SettingsPanel: React.FC = () => {
             <option value="openai">OpenAI</option>
             <option value="anthropic">Anthropic</option>
             <option value="xai">xAI (Grok)</option>
-            <option value="custom">Custom</option>
           </select>
         </div>
         
@@ -119,16 +115,6 @@ const SettingsPanel: React.FC = () => {
         </div>
       </div>
       
-      {settings.provider === 'custom' && (
-        <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/30 rounded-md text-sm">
-          <p className="font-medium text-yellow-800 dark:text-yellow-200">
-            Custom Provider Configuration
-          </p>
-          <p className="text-yellow-700 dark:text-yellow-300 mt-1">
-            You&apos;ll need to configure the API endpoint in your n8n workflow.
-          </p>
-        </div>
-      )}
     </div>
   );
 };
