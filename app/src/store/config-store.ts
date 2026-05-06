@@ -78,6 +78,15 @@ export const useConfigStore = create<ConfigState>()(
     }),
     {
       name: 'promptflow-config',
+      version: 1,
+      migrate: (persisted: unknown) => {
+        const state = persisted as { settings?: { provider?: string } };
+        if (state?.settings?.provider === 'custom') {
+          state.settings.provider = 'openai';
+          state.settings = { ...DEFAULT_SETTINGS, ...state.settings };
+        }
+        return state;
+      },
     }
   )
 );

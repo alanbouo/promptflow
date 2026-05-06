@@ -192,6 +192,11 @@ export async function callLLM(request: LLMRequest): Promise<LLMResponse> {
   const { systemPrompt, userPrompts, dataItem, settings } = request;
   const { provider, model, temperature, maxTokens } = settings;
   
+  const SUPPORTED_PROVIDERS = ['openai', 'anthropic', 'xai'];
+  if (!SUPPORTED_PROVIDERS.includes(provider)) {
+    throw new Error(`Unsupported provider: "${provider}". Supported providers are: ${SUPPORTED_PROVIDERS.join(', ')}.`);
+  }
+
   const apiKey = getApiKey(provider);
   if (!apiKey) {
     throw new Error(`API key not configured for provider: ${provider}. Please set the appropriate environment variable.`);
