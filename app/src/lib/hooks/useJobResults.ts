@@ -53,37 +53,29 @@ export function useJobResults(jobId: string | null): UseJobResultsReturn {
     }
   };
   
-  // Start polling if job is running
+  // Fetch on mount / jobId change, stop polling on unmount
   useEffect(() => {
     if (!jobId) return;
-    
-    // Initial fetch
     fetchJobData();
-    
-    // Start polling if job is running and not already polling
-    if (currentJob && currentJob.status === 'running' && !isPolling) {
-      startPolling(jobId);
-    }
-    
-    // Stop polling when component unmounts
-    return () => {
-      stopPolling();
-    };
-  }, [jobId, currentJob?.status, isPolling]);
-  
-  // Update results when currentJob changes
+    return () => { stopPolling(); };
+  }, [jobId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Start or stop polling based solely on job status
   useEffect(() => {
-    if (currentJob && currentJob.results) {
+    if (!currentJob) return;
+    if (currentJob.status === 'running') {
+      startPolling(currentJob.id);
+    } else if (['completed', 'failed', 'cancelled'].includes(currentJob.status)) {
+      stopPolling();
+    }
+  }, [currentJob?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync results from currentJob
+  useEffect(() => {
+    if (currentJob?.results) {
       setResults(currentJob.results);
     }
   }, [currentJob]);
-  
-  // Stop polling when job is complete
-  useEffect(() => {
-    if (currentJob && ['completed', 'failed', 'cancelled'].includes(currentJob.status)) {
-      stopPolling();
-    }
-  }, [currentJob?.status]);
   
   return {
     job: currentJob,
