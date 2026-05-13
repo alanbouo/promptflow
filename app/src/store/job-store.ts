@@ -70,33 +70,29 @@ export const useJobStore = create<JobState>((set, get) => ({
   })),
   
   startPolling: (id, interval = 3000) => {
-    // Clear any existing polling
-    const { stopPolling } = get();
-    stopPolling();
-    
-    // Start new polling
+    // Clear any existing interval without triggering a React state update
+    const { pollingInterval } = get();
+    if (pollingInterval !== null) {
+      window.clearInterval(pollingInterval);
+    }
+
     const pollingId = window.setInterval(async () => {
       try {
         const response = await fetch(`/api/jobs/${id}`);
         if (!response.ok) {
           throw new Error(`Failed to fetch job: ${response.statusText}`);
         }
-        
+
         const job = await response.json();
         set({ currentJob: job });
-        
-        // Stop polling if job is completed, failed, or cancelled
-        if (['completed', 'failed', 'cancelled'].includes(job.status)) {
-          stopPolling();
-        }
       } catch (error) {
         console.error('Error polling job status:', error);
       }
     }, interval);
-    
-    set({ 
-      isPolling: true, 
-      pollingInterval: pollingId as unknown as number 
+
+    set({
+      isPolling: true,
+      pollingInterval: pollingId as unknown as number
     });
   },
   
