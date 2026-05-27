@@ -45,7 +45,7 @@ function BackendTokenSync() {
       }
     }
     syncBackendToken();
-  }, [session, status]);
+  }, [status]);
 
   return null;
 }
