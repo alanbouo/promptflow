@@ -4,3 +4,4 @@ n8n/node_modules/*
 conversation_log.md
 *.env
 app/.env
+*.tsbuildinfo
