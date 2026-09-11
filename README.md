@@ -1,11 +1,11 @@
 # PromptFlow
 
-A web-based tool for configuring prompts, processing data through LLMs (batch or single), and displaying outputs with support for prompt chaining. Powered by **n8n workflows** for visual workflow design and robust execution.
+A web-based tool for configuring prompts, processing data through LLMs (batch or single), and displaying outputs with support for prompt chaining. Job processing runs through **Inngest** for durable, retryable background execution.
 
 ![Next.js](https://img.shields.io/badge/Next.js-14-black)
 ![React](https://img.shields.io/badge/React-18-blue)
 ![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3-38bdf8)
-![n8n](https://img.shields.io/badge/n8n-workflow-orange)
+![Inngest](https://img.shields.io/badge/Inngest-jobs-blue)
 
 ## Features
 
@@ -27,22 +27,28 @@ A web-based tool for configuring prompts, processing data through LLMs (batch or
 │  Configure prompts, upload data, display results             │
 └─────────────────────────────┬───────────────────────────────┘
                               │
-          ┌───────────────────┼───────────────────┐
-          ▼                   ▼                   ▼
-┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│ Next.js API     │  │ n8n Webhook     │  │ n8n Webhook     │
-│ /api/templates  │  │ /process-single │  │ /process-batch  │
-└────────┬────────┘  └────────┬────────┘  └────────┬────────┘
-         │                    └─────────┬──────────┘
-         ▼                              ▼
-┌─────────────────┐         ┌───────────────────────────────┐
-│   Database      │         │       n8n WORKFLOW ENGINE     │
-│   (SQLite)      │         │  • Format prompts             │
-│   - Templates   │         │  • Call LLM (OpenAI/Claude)   │
-│   - Jobs        │         │  • Chain outputs if needed    │
-└─────────────────┘         │  • Return aggregated results  │
-                            └───────────────────────────────┘
+                              ▼
+                    ┌─────────────────────┐
+                    │   BACKEND (Hono)    │
+                    │  /api/jobs          │
+                    │  /api/templates     │
+                    │  /api/auth, /user   │
+                    └──────────┬──────────┘
+                     ┌─────────┴─────────┐
+                     ▼                   ▼
+          ┌─────────────────┐   ┌───────────────────────┐
+          │   PostgreSQL     │   │  Inngest (self-hosted) │
+          │  - Templates     │   │  process-job function  │
+          │  - Jobs          │   │  • Call LLM per item    │
+          └─────────────────┘   │  • Chain prompts        │
+                                 │  • Retries + durability │
+                                 └───────────────────────┘
 ```
+
+Job creation returns immediately; the `backend` service emits a `job/process.requested`
+event, and the Inngest server invokes the `process-job` function (durable steps, automatic
+retries per item) which writes results back to Postgres. The frontend polls `GET /api/jobs/:id`
+until the job reaches a terminal status.
 
 ## Tech Stack
 
@@ -51,9 +57,9 @@ A web-based tool for configuring prompts, processing data through LLMs (batch or
 | **Frontend** | Next.js 14 + React 18 |
 | **Styling** | TailwindCSS + shadcn/ui |
 | **State** | Zustand |
-| **Backend API** | Next.js API Routes |
-| **Workflow Engine** | n8n (self-hosted) |
-| **Database** | SQLite (via Prisma) |
+| **Backend API** | Hono (standalone service, `backend/`) |
+| **Background Jobs** | Inngest (self-hosted) |
+| **Database** | PostgreSQL (via Prisma) |
 | **Deployment** | Docker Compose |
 
 ## Prerequisites
@@ -73,14 +79,13 @@ cd promptflow
 
 ### 2. Configure environment variables
 
-**For n8n (root directory):**
+**For the backend:**
 ```bash
-cp .env.n8n.example .env.n8n
-# Edit .env.n8n with your settings:
-#   N8N_USER=admin
-#   N8N_PASSWORD=your-secure-password
-#   OPENAI_API_KEY=sk-...
-#   ANTHROPIC_API_KEY=sk-ant-...
+cd backend
+cp .env.example .env
+# Fill in DATABASE_URL, JWT_SECRET, LLM API keys, and the Inngest vars
+# (INNGEST_BASE_URL, INNGEST_EVENT_KEY, INNGEST_SIGNING_KEY) pointing at
+# your self-hosted Inngest server.
 ```
 
 **For the Next.js app:**
@@ -90,37 +95,28 @@ cp .env.example .env
 # Edit .env if needed (defaults should work for local development)
 ```
 
-### 3. Start n8n workflow engine
+### 3. Set up the backend
 
 ```bash
-# From the root directory
-docker-compose up -d
+cd backend
+npm install
+npx prisma generate
+npx prisma db push
+npm run dev
 ```
 
-n8n will be available at `http://localhost:5678`
+The backend listens on `http://localhost:4000`. To have the self-hosted Inngest
+server invoke `process-job`, sync it from the Inngest dashboard (**Apps → Sync**)
+pointing at `http://localhost:4000/api/inngest` (or the container's internal address).
 
-### 4. Import n8n workflows
-
-1. Open n8n at `http://localhost:5678`
-2. Log in with your configured credentials
-3. Go to **Settings → Credentials** and add:
-   - **OpenAI API** credential with your API key
-   - **Anthropic API** credential (if using Claude)
-4. Import workflows from `n8n/workflows/`:
-   - `process-single.json` - Single item processing
-   - `process-batch.json` - Batch processing
-5. Activate the imported workflows
-
-### 5. Set up the Next.js application
+### 4. Set up the Next.js application
 
 ```bash
 cd app
 npm install
-npx prisma generate
-npx prisma db push
 ```
 
-### 6. Start the development server
+### 5. Start the development server
 
 ```bash
 npm run dev

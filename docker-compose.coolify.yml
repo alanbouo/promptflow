@@ -32,6 +32,10 @@ services:
       - EMAIL_FROM=${EMAIL_FROM:-PromptFlow <noreply@promptflow.run>}
       - FRONTEND_URL=${FRONTEND_URL:-https://app.promptflow.run}
       - PORT=4000
+      - INNGEST_DEV=0
+      - INNGEST_BASE_URL=${INNGEST_BASE_URL}
+      - INNGEST_EVENT_KEY=${INNGEST_EVENT_KEY}
+      - INNGEST_SIGNING_KEY=${INNGEST_SIGNING_KEY}
     ports:
       - "4000:4000"
     depends_on:

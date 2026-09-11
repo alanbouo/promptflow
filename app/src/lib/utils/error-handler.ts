@@ -1,5 +1,5 @@
 /**
- * Error handling utilities for n8n responses
+ * Error handling utilities for backend API responses
  */
 
 export interface ApiError {
@@ -9,36 +9,36 @@ export interface ApiError {
 }
 
 /**
- * Parse error from n8n response
+ * Parse error from a backend API response
  */
-export function parseN8nError(error: unknown): ApiError {
+export function parseApiError(error: unknown): ApiError {
   // Handle network errors
   if (error instanceof TypeError && error.message === 'Failed to fetch') {
     return {
       status: 503,
-      message: 'Unable to connect to n8n server',
-      details: 'Please check that the n8n server is running and accessible'
+      message: 'Unable to connect to the API server',
+      details: 'Please check that the backend server is running and accessible'
     };
   }
-  
+
   // Handle HTTP errors
   if (error instanceof Response) {
     return {
       status: error.status,
-      message: `n8n server responded with status: ${error.status}`,
+      message: `API server responded with status: ${error.status}`,
       details: error.statusText
     };
   }
-  
+
   // Handle JSON parsing errors
   if (error instanceof SyntaxError && error.message.includes('JSON')) {
     return {
       status: 500,
-      message: 'Invalid response from n8n server',
+      message: 'Invalid response from the API server',
       details: 'The server returned an invalid JSON response'
     };
   }
-  
+
   // Handle standard errors
   if (error instanceof Error) {
     return {
@@ -47,7 +47,7 @@ export function parseN8nError(error: unknown): ApiError {
       details: error.stack
     };
   }
-  
+
   // Handle unknown errors
   return {
     status: 500,
@@ -64,32 +64,32 @@ export function formatErrorMessage(error: ApiError): string {
     case 400:
       return `Invalid request: ${error.message}`;
     case 401:
-      return 'Authentication required to access n8n server';
+      return 'Authentication required to access the API server';
     case 403:
       return 'You do not have permission to access this resource';
     case 404:
-      return 'The requested resource was not found on the n8n server';
+      return 'The requested resource was not found';
     case 429:
       return 'Rate limit exceeded. Please try again later.';
     case 500:
-      return `n8n server error: ${error.message}`;
+      return `API server error: ${error.message}`;
     case 503:
-      return 'n8n server is currently unavailable';
+      return 'API server is currently unavailable';
     default:
       return error.message;
   }
 }
 
 /**
- * Handle n8n webhook errors
+ * Handle backend API errors
  */
-export function handleN8nWebhookError(error: unknown): { message: string; retry: boolean } {
-  const parsedError = parseN8nError(error);
-  
+export function handleApiError(error: unknown): { message: string; retry: boolean } {
+  const parsedError = parseApiError(error);
+
   // Determine if we should retry
   const retryableStatuses = [408, 429, 500, 502, 503, 504];
   const shouldRetry = retryableStatuses.includes(parsedError.status);
-  
+
   return {
     message: formatErrorMessage(parsedError),
     retry: shouldRetry
@@ -106,7 +106,7 @@ export async function retryWithBackoff<T>(
 ): Promise<T> {
   let retries = 0;
   let delay = initialDelay;
-  
+
   while (true) {
     try {
       return await fn();
@@ -114,15 +114,15 @@ export async function retryWithBackoff<T>(
       if (retries >= maxRetries) {
         throw error;
       }
-      
-      const { retry } = handleN8nWebhookError(error);
+
+      const { retry } = handleApiError(error);
       if (!retry) {
         throw error;
       }
-      
+
       // Wait with exponential backoff
       await new Promise(resolve => setTimeout(resolve, delay));
-      
+
       // Increase delay for next retry
       delay *= 2;
       retries++;

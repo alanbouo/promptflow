@@ -89,9 +89,6 @@ PostgreSQL              → Database (port 5432)
 | `OPENAI_API_KEY` | `sk-...` (for direct LLM calls) |
 | `ANTHROPIC_API_KEY` | `sk-ant-...` (optional) |
 | `XAI_API_KEY` | `xai-...` (optional) |
-| `N8N_WEBHOOK_SINGLE` | n8n webhook URL for single processing (optional) |
-| `N8N_WEBHOOK_BATCH` | n8n webhook URL for batch processing (optional) |
-| `N8N_WEBHOOK_AUTH_TOKEN` | n8n webhook auth token (optional) |
 
 6. **Domain**: `app.promptflow.run` with HTTPS
 7. Deploy
@@ -143,6 +140,9 @@ Use the provided `docker-compose.coolify.yml` for a single-stack deployment.
 | `EMAIL_FROM` | No | From address for emails |
 | `FRONTEND_URL` | Yes | Frontend URL for CORS |
 | `PORT` | No | Server port (default: 4000) |
+| `INNGEST_BASE_URL` | Yes | URL of the self-hosted Inngest server (shared across apps) |
+| `INNGEST_EVENT_KEY` | Yes | Event key configured on the Inngest server |
+| `INNGEST_SIGNING_KEY` | Yes | Signing key configured on the Inngest server |
 
 ### Frontend (`app.promptflow.run`)
 
@@ -157,9 +157,6 @@ Use the provided `docker-compose.coolify.yml` for a single-stack deployment.
 | `OPENAI_API_KEY` | Yes | OpenAI API key for direct LLM calls |
 | `ANTHROPIC_API_KEY` | No | Anthropic API key |
 | `XAI_API_KEY` | No | xAI API key |
-| `N8N_WEBHOOK_SINGLE` | No | n8n webhook URL for single item processing |
-| `N8N_WEBHOOK_BATCH` | No | n8n webhook URL for batch processing |
-| `N8N_WEBHOOK_AUTH_TOKEN` | No | Bearer token for n8n webhook auth |
 
 ### Landing (`promptflow.run`)
 
@@ -169,38 +166,17 @@ Use the provided `docker-compose.coolify.yml` for a single-stack deployment.
 
 ---
 
-## Option C: Deploy with n8n (Optional)
+## Option C: Background Job Processing with Inngest
 
-If you want to use n8n for workflow processing instead of direct LLM calls:
+Job processing (LLM calls, batching, retries) runs through [Inngest](https://www.inngest.com/), against a self-hosted Inngest server shared with other apps on this infrastructure.
 
-### Step 1: Deploy n8n
+### Step 1: Point the backend at the Inngest server
 
-1. **+ New** → **Application** → **Docker Image**
-2. Use image: `n8nio/n8n:latest`
-3. Configure:
-   - **Port**: `5678`
-4. **Environment Variables**:
+Set these on the `backend` service (see table above): `INNGEST_BASE_URL`, `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`.
 
-| Variable | Value |
-|----------|-------|
-| `N8N_BASIC_AUTH_ACTIVE` | `true` |
-| `N8N_BASIC_AUTH_USER` | `admin` |
-| `N8N_BASIC_AUTH_PASSWORD` | Generate a secure password |
-| `WEBHOOK_URL` | `https://n8n.promptflow.run` |
+### Step 2: Sync the app with the Inngest server
 
-5. **Domain**: `n8n.promptflow.run` with HTTPS
-6. **Volumes**: Mount `/home/node/.n8n` for persistence
-7. Deploy and import workflows from `n8n/workflows/`
-
-### Step 2: Configure Frontend for n8n
-
-Add these environment variables to the frontend:
-
-| Variable | Value |
-|----------|-------|
-| `N8N_WEBHOOK_SINGLE` | `https://n8n.promptflow.run/webhook/process-single` |
-| `N8N_WEBHOOK_BATCH` | `https://n8n.promptflow.run/webhook/process-batch` |
-| `N8N_WEBHOOK_AUTH_TOKEN` | Your n8n webhook auth token |
+From the Inngest server's dashboard (**Apps** → **Sync**), point it at `https://api.promptflow.run/api/inngest` (or the internal service URL, e.g. `http://backend:4000/api/inngest`, if the backend and the Inngest server share a Docker network). This lets Inngest discover the `process-job` function and start invoking it.
 
 ---
 

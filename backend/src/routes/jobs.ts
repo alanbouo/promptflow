@@ -1,35 +1,13 @@
 import { Hono } from 'hono';
 import { v4 as uuidv4 } from 'uuid';
 import prisma from '../lib/db.js';
-import { processWithChaining } from '../lib/llm-client.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { inngest } from '../inngest/client.js';
 
 const jobs = new Hono();
 
 // All routes require authentication
 jobs.use('*', authMiddleware);
-
-interface JobResult {
-  input: string;
-  intermediates?: string[];
-  finalOutput: string;
-  tokenUsage: { prompt: number; completion: number };
-  status: 'success' | 'error';
-  error?: string;
-}
-
-// Generate a short summary from output text
-function generateOutputSummary(output: string): string {
-  if (!output) return '';
-  const cleaned = output
-    .replace(/[#*`_~\[\]()]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (cleaned.length <= 40) return cleaned;
-  const truncated = cleaned.slice(0, 40);
-  const lastSpace = truncated.lastIndexOf(' ');
-  return (lastSpace > 20 ? truncated.slice(0, lastSpace) : truncated) + '...';
-}
 
 // GET /jobs - List user's jobs
 jobs.get('/', async (c) => {
@@ -166,8 +144,20 @@ jobs.post('/', async (c) => {
       maxTokens: body.config.settings.maxTokens
     };
 
-    // Process asynchronously (don't await)
-    processJobAsync(jobId, body.inputData, userPromptContents, body.config.systemPrompt, settings, templateName, isBatch);
+    // Hand off processing to Inngest: durable execution with automatic
+    // retries per item, and resumable if the process crashes mid-batch.
+    await inngest.send({
+      name: 'job/process.requested',
+      data: {
+        jobId,
+        inputData: body.inputData,
+        userPrompts: userPromptContents,
+        systemPrompt: body.config.systemPrompt,
+        settings,
+        templateName,
+        isBatch
+      }
+    });
 
     // Return the created job
     return c.json({
@@ -180,112 +170,6 @@ jobs.post('/', async (c) => {
     return c.json({ error: 'Failed to create job' }, 500);
   }
 });
-
-// Async job processing function
-async function processJobAsync(
-  jobId: string,
-  inputData: string[],
-  userPrompts: string[],
-  systemPrompt: string,
-  settings: { provider: string; model: string; temperature: number; maxTokens: number },
-  templateName: string,
-  isBatch: boolean
-) {
-  try {
-    if (isBatch) {
-      const results: JobResult[] = [];
-      let totalTokens = 0;
-
-      for (const dataItem of inputData) {
-        try {
-          const llmResult = await processWithChaining(
-            systemPrompt,
-            userPrompts,
-            dataItem,
-            settings
-          );
-
-          results.push({
-            input: dataItem,
-            intermediates: llmResult.intermediates,
-            finalOutput: llmResult.finalOutput,
-            tokenUsage: llmResult.tokenUsage,
-            status: 'success'
-          });
-
-          totalTokens += llmResult.tokenUsage.prompt + llmResult.tokenUsage.completion;
-        } catch (itemError) {
-          results.push({
-            input: dataItem,
-            finalOutput: '',
-            tokenUsage: { prompt: 0, completion: 0 },
-            status: 'error',
-            error: itemError instanceof Error ? itemError.message : 'Unknown error'
-          });
-        }
-      }
-
-      const firstSuccess = results.find(r => r.status === 'success');
-      const outputSummary = generateOutputSummary(firstSuccess?.finalOutput || '');
-      const jobName = templateName
-        ? `${templateName}: ${outputSummary}`
-        : outputSummary || `Job ${jobId.slice(0, 8)}`;
-
-      const hasErrors = results.some(r => r.status === 'error');
-
-      await prisma.job.update({
-        where: { id: jobId },
-        data: {
-          name: jobName,
-          status: hasErrors ? 'failed' : 'completed',
-          results: JSON.stringify(results),
-          tokenUsage: totalTokens,
-          completedAt: new Date()
-        }
-      });
-    } else {
-      const llmResult = await processWithChaining(
-        systemPrompt,
-        userPrompts,
-        inputData[0],
-        settings
-      );
-
-      const result: JobResult = {
-        input: inputData[0],
-        intermediates: llmResult.intermediates,
-        finalOutput: llmResult.finalOutput,
-        tokenUsage: llmResult.tokenUsage,
-        status: 'success'
-      };
-
-      const outputSummary = generateOutputSummary(result.finalOutput);
-      const jobName = templateName
-        ? `${templateName}: ${outputSummary}`
-        : outputSummary || `Job ${jobId.slice(0, 8)}`;
-
-      await prisma.job.update({
-        where: { id: jobId },
-        data: {
-          name: jobName,
-          status: 'completed',
-          results: JSON.stringify([result]),
-          tokenUsage: result.tokenUsage.prompt + result.tokenUsage.completion,
-          completedAt: new Date()
-        }
-      });
-    }
-  } catch (error) {
-    console.error('Job processing error:', error);
-    await prisma.job.update({
-      where: { id: jobId },
-      data: {
-        status: 'failed',
-        completedAt: new Date()
-      }
-    });
-  }
-}
 
 // GET /jobs/:id - Get a specific job
 jobs.get('/:id', async (c) => {

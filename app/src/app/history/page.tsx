@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { JobSummary } from '../../lib/types/job';
+import apiClient from '../../lib/api-client';
 
 export default function HistoryPage() {
   const [jobs, setJobs] = useState<JobSummary[]>([]);
@@ -12,10 +13,9 @@ export default function HistoryPage() {
   useEffect(() => {
     async function fetchJobs() {
       try {
-        const response = await fetch('/api/jobs');
-        if (response.ok) {
-          const data = await response.json();
-          setJobs(data);
+        const result = await apiClient.getJobs();
+        if (result.data) {
+          setJobs(result.data);
         }
       } catch (error) {
         console.error('Error fetching jobs:', error);

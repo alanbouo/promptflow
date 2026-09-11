@@ -31,7 +31,6 @@ export interface JobConfig {
 
 export interface Job {
   id: string;
-  n8nExecutionId?: string;
   status: JobStatus;
   templateId?: string;
   config: JobConfig;
@@ -51,7 +50,6 @@ export interface CreateJobRequest {
 }
 
 export interface UpdateJobRequest {
-  n8nExecutionId?: string;
   status?: JobStatus;
   results?: JobResult[];
   logs?: string[];

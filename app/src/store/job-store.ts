@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { Job, JobStatus, JobSummary } from '../lib/types/job';
+import apiClient from '../lib/api-client';
 
 export interface JobState {
   // Current job
@@ -78,13 +79,12 @@ export const useJobStore = create<JobState>((set, get) => ({
 
     const pollingId = window.setInterval(async () => {
       try {
-        const response = await fetch(`/api/jobs/${id}`);
-        if (!response.ok) {
-          throw new Error(`Failed to fetch job: ${response.statusText}`);
+        const result = await apiClient.getJob(id);
+        if (result.error || !result.data) {
+          throw new Error(result.error || 'Failed to fetch job');
         }
 
-        const job = await response.json();
-        set({ currentJob: job });
+        set({ currentJob: result.data });
       } catch (error) {
         console.error('Error polling job status:', error);
       }

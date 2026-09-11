@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { JobSummary } from '../lib/types/job';
+import apiClient from '../lib/api-client';
 
 export default function Home() {
   const [jobs, setJobs] = useState<JobSummary[]>([]);
@@ -11,10 +12,9 @@ export default function Home() {
   useEffect(() => {
     async function fetchJobs() {
       try {
-        const response = await fetch('/api/jobs');
-        if (response.ok) {
-          const data = await response.json();
-          setJobs(data.slice(0, 5)); // Show only 5 most recent
+        const result = await apiClient.getJobs();
+        if (result.data) {
+          setJobs(result.data.slice(0, 5)); // Show only 5 most recent
         }
       } catch (error) {
         console.error('Error fetching jobs:', error);
