@@ -19,8 +19,12 @@ COPY . .
 # Generate Prisma client
 RUN npx prisma generate
 
-# Build the application
+# Build the application. Cap V8's heap so the build fails/GCs instead of
+# growing unbounded - this VPS is shared with several other projects and has
+# no swap, so an unbounded webpack/tsc build has taken the whole host down
+# more than once.
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_OPTIONS=--max-old-space-size=1536
 RUN npm run build
 
 # Production image, copy all the files and run next
