@@ -54,11 +54,13 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # itself - without it, `npx prisma` at runtime can't find a local install and
 # silently fetches whatever is currently "latest" from npm, which has broken
 # this before (e.g. a new major version dropping the --skip-generate flag).
+# Note: don't copy node_modules/.bin/prisma - it's a symlink to
+# prisma/build/index.js, and Docker COPY dereferences it into a plain file,
+# which breaks that script's relative lookup of its sibling .wasm file.
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 
 USER nextjs
 
@@ -67,5 +69,6 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Run Prisma migrations and start the server
-CMD ["sh", "-c", "npx prisma db push --skip-generate && node server.js"]
+# Run Prisma migrations and start the server. Invoke the CLI's entry file
+# directly rather than via npx/`.bin/prisma` (see note above).
+CMD ["sh", "-c", "node ./node_modules/prisma/build/index.js db push --skip-generate && node server.js"]
