@@ -81,7 +81,9 @@ export const useConfigStore = create<ConfigState>()(
       version: 1,
       migrate: (persisted: unknown) => {
         const state = persisted as { settings?: Partial<ConfigSettings> };
-        if (state?.settings?.provider === 'custom') {
+        // Legacy persisted data could contain a 'custom' provider value that
+        // is no longer valid - reset those settings to the current defaults.
+        if ((state?.settings?.provider as string | undefined) === 'custom') {
           const { temperature, maxTokens, batchProcessing, concurrentRequests } = state.settings;
           state.settings = {
             ...DEFAULT_SETTINGS,
