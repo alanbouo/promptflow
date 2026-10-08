@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { signIn } from 'next-auth/react';
+import { signIn, useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import apiClient from '@/lib/api-client';
@@ -20,6 +20,14 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const { status } = useSession();
+
+  // Already signed in: skip the form (but let an in-flight submit finish its own redirect)
+  useEffect(() => {
+    if (status === 'authenticated' && !isLoading) {
+      router.replace('/');
+    }
+  }, [status, isLoading, router]);
 
   useEffect(() => {
     const urlError = searchParams.get('error');
