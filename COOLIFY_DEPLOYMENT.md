@@ -140,7 +140,7 @@ Use the provided `docker-compose.coolify.yml` for a single-stack deployment.
 | `EMAIL_FROM` | No | From address for emails |
 | `FRONTEND_URL` | Yes | Frontend URL for CORS |
 | `PORT` | No | Server port (default: 4000) |
-| `INNGEST_BASE_URL` | Yes | URL of the self-hosted Inngest server (shared across apps) |
+| `INNGEST_BASE_URL` | Yes | URL of the self-hosted Inngest server, reached over Tailscale (e.g. `http://100.x.x.x:8288`) - **not** the public domain, which is behind a Traefik Basic Auth that breaks the SDK's server-to-server register/event calls |
 | `INNGEST_EVENT_KEY` | Yes | Event key configured on the Inngest server |
 | `INNGEST_SIGNING_KEY` | Yes | Signing key configured on the Inngest server |
 
@@ -168,11 +168,11 @@ Use the provided `docker-compose.coolify.yml` for a single-stack deployment.
 
 ## Option C: Background Job Processing with Inngest
 
-Job processing (LLM calls, batching, retries) runs through [Inngest](https://www.inngest.com/), against a self-hosted Inngest server shared with other apps on this infrastructure.
+Job processing (LLM calls, batching, retries) runs through [Inngest](https://www.inngest.com/), against a self-hosted Inngest server shared with other apps on this infrastructure. The `promptflow` and Inngest VPS are joined over a private Tailscale network so the backend can reach the Inngest API directly, without going through the public domain's Traefik Basic Auth.
 
 ### Step 1: Point the backend at the Inngest server
 
-Set these on the `backend` service (see table above): `INNGEST_BASE_URL`, `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`.
+Set these on the `backend` service (see table above): `INNGEST_BASE_URL` (the Inngest VPS's Tailscale IP, port 8288), `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`.
 
 ### Step 2: Sync the app with the Inngest server
 
