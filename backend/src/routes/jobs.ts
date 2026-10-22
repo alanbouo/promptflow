@@ -146,18 +146,32 @@ jobs.post('/', async (c) => {
 
     // Hand off processing to Inngest: durable execution with automatic
     // retries per item, and resumable if the process crashes mid-batch.
-    await inngest.send({
-      name: 'job/process.requested',
-      data: {
-        jobId,
-        inputData: body.inputData,
-        userPrompts: userPromptContents,
-        systemPrompt: body.config.systemPrompt,
-        settings,
-        templateName,
-        isBatch
-      }
-    });
+    try {
+      await inngest.send({
+        name: 'job/process.requested',
+        data: {
+          jobId,
+          inputData: body.inputData,
+          userPrompts: userPromptContents,
+          systemPrompt: body.config.systemPrompt,
+          settings,
+          templateName,
+          isBatch
+        }
+      });
+    } catch (sendError) {
+      // Without this the job would stay 'running' forever: nothing will process it.
+      console.error('Error sending job to Inngest:', sendError);
+      await prisma.job.update({
+        where: { id: jobId },
+        data: {
+          status: 'failed',
+          completedAt: new Date(),
+          logs: JSON.stringify([{ level: 'error', message: 'Job queue unavailable, job was not started' }])
+        }
+      });
+      return c.json({ error: 'Job queue unavailable, please retry shortly' }, 503);
+    }
 
     // Return the created job
     return c.json({
