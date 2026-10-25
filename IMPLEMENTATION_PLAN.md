@@ -173,7 +173,7 @@ Goal: from a prompt page on Promptothèque, one action opens it in PromptFlow, r
 ### Phase E: Deployment and operations
 
 - [x] README rewritten for Hono + Inngest (no n8n references left in `README.md`)
-- [ ] Keep `COOLIFY_DEPLOYMENT.md` and `docker-compose.coolify.yml` as the source of truth; add the missing `DATABASE_URL` to `app/.env.example` and decide whether `app/prisma` should stay a copy of `backend/prisma`
+- [ ] Keep `COOLIFY_DEPLOYMENT.md` and `docker-compose.coolify.yml` as the source of truth; decide whether `app/prisma` should stay a copy of `backend/prisma`
 - [ ] Document required environment variables for the backend: `DATABASE_URL`, `JWT_SECRET`, the three LLM keys, `INNGEST_BASE_URL`, `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`, `FRONTEND_URL`, `PORT`
 - [ ] Integration tests for `/api/jobs` (including the `503` path and cancel), and one end-to-end test of configure, run and export
 

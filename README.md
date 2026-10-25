@@ -107,9 +107,8 @@ The backend listens on `http://localhost:4000`. Check it with `curl http://local
 cd app
 cp .env.example .env
 # Set NEXTAUTH_SECRET and INTERNAL_API_SECRET (same value as the backend).
-# Add DATABASE_URL (same database as the backend): the NextAuth and
-# template/account routes of the frontend read it directly, and it is
-# missing from .env.example.
+# DATABASE_URL must point to the same database as the backend: the NextAuth
+# and template/account routes of the frontend read it directly.
 npm install
 npm run dev
 ```
@@ -237,7 +236,7 @@ The server's own keys pay for every LLM call. There is no per-user limit yet (se
 | `NEXT_PUBLIC_APP_URL` | Public URL of the frontend |
 | `NEXTAUTH_SECRET`, `NEXTAUTH_URL` | NextAuth session secret and callback URL |
 | `INTERNAL_API_SECRET` | Must match the backend value |
-| `DATABASE_URL` | Same database as the backend (not in `.env.example`) |
+| `DATABASE_URL` | Same database as the backend |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Emails sent by the frontend routes |
 | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `XAI_API_KEY` | Provider keys for the frontend's own prompt-assistant routes |
 
