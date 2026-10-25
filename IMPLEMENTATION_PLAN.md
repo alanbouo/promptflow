@@ -22,7 +22,7 @@ PromptFlow is a web-based tool for configuring prompts, processing data through 
 | **Background jobs** | Inngest (self-hosted) | Function `process-job`, event `job/process.requested`, synced at `/api/inngest` |
 | **LLM access** | Direct `fetch` to OpenAI, Anthropic, xAI | Keys come from server environment variables |
 | **Database** | PostgreSQL via Prisma 5 | JSON stored as `String` columns, not `Json` |
-| **Auth** | JWT (`jose`) as `Authorization: Bearer`, passwords hashed with `bcryptjs`, reset emails via `resend` | |
+| **Auth** | Backend: JWT (`jose`) as `Authorization: Bearer`, passwords hashed with `bcryptjs`. Frontend: NextAuth credentials, exchanged for a backend JWT through `/api/auth/exchange-token`. Reset emails are sent by the **frontend** (Resend), not the backend. | |
 | **Deployment** | Docker Compose, Coolify (`docker-compose.coolify.yml`, `COOLIFY_DEPLOYMENT.md`) | |
 
 ---
@@ -86,7 +86,7 @@ Verified in `backend/src/lib/llm-client.ts`:
 ## Delivered (backend)
 
 - [x] Hono service with CORS, request logging, health check, 404 and error handlers
-- [x] Auth: register, login, forgot/reset password (Resend), JWT middleware on `templates`, `jobs`, `refine`
+- [x] Auth: register, login, forgot/reset password, JWT middleware on `templates`, `jobs`, `refine`. Note: the backend's `forgot-password` creates the token but **sends no email** (see issue 8).
 - [x] Templates: list, create, get, delete (per user)
 - [x] Jobs: create, list (with item counts), get, cancel/delete
 - [x] Inngest function `process-job`: one durable step per item, per-item error capture, job naming from template name plus a summary of the first successful output, token totals
@@ -109,6 +109,9 @@ Ordered by impact. None of these has been reproduced by running the service.
 5. **The server pays for every call.** API keys come from `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` and `XAI_API_KEY` on the server. There is no per-user quota, no item limit and no cost estimate. `/api/refine/*` always uses OpenAI `gpt-4o-mini`, so it fails if only another key is configured.
 6. **Outdated default models.** The fallback in `POST /api/jobs` uses `claude-3-sonnet-20240229` and `gpt-4`. Update to current models and make them configurable.
 7. **Provider fallback is silent.** An unsupported or missing provider is replaced by whichever key exists, without telling the user which model actually ran.
+8. **The backend sends no password-reset email.** `POST /api/auth/forgot-password` in `backend/src/routes/auth.ts` stores a token and only `console.log`s it (`// TODO: Send email`). No code in `backend/src` uses Resend, although `resend` is a dependency and `RESEND_API_KEY` is in `.env.example`. The working flow is the frontend route `app/src/app/api/auth/forgot-password/route.ts`, which the forgot-password page calls.
+9. **The backend's account deletion probably fails for users who have data.** `DELETE /api/user/account` calls `prisma.user.delete` and asks for no password. `Template.user` and `Job.user` have no `onDelete: Cascade` in the schema, so the foreign keys should reject the delete. The frontend route (`app/src/app/api/user/account/route.ts`) deletes jobs, templates and tokens in a transaction and requires the password. Not run against a database.
+10. **The frontend API routes are not copies of the backend ones.** The pages call the frontend routes (`/api/auth/register`, `forgot-password`, `reset-password`, `/api/user/password`, `/api/user/account`, `/api/templates`, `/api/refine/*`), which read the database directly. Differences found: reset-password and change-password enforce a 6-character minimum in the frontend only; `refine/*` has a different request and response contract (`{ useCase, examples }` returning `systemPrompt` and `userPrompt` versus `{ description, context }` returning `prompt`) and defaults to xAI. Deleting the frontend routes without porting these behaviours would break password reset emails, account deletion and the prompt assistant.
 
 ---
 
@@ -169,6 +172,18 @@ Goal: from a prompt page on Promptothèque, one action opens it in PromptFlow, r
 - [ ] Hand-off from Promptothèque: a link to PromptFlow that passes the prompt identifier. After sign-in, PromptFlow fetches the public prompt and creates the template. No shared login in the first version.
 - [ ] Later, if usage justifies it: a shared account, so a Promptothèque paid plan unlocks PromptFlow
 - [ ] Settle chain syntax: Promptothèque's multi-step chains (`etapesEnchainement` in `lib/plans.ts`) were not read for this revision. Compare them with `{previous_output}` before promising that chains transfer.
+
+### Phase F: One API instead of two (issues 8 to 10)
+
+Goal: the frontend talks only to the backend (`lib/api-client.ts` already wraps it); NextAuth keeps only `[...nextauth]` and `backend-token`. Port first, then switch the pages, then delete the frontend routes.
+
+- [ ] Backend: send the reset email (port `app/src/lib/email.ts` and the Resend call), delete the previous tokens for the user, and build the link from the frontend URL
+- [ ] Backend: validation parity (6-character minimum on register, reset-password and change-password; delete an expired token)
+- [ ] Backend: `DELETE /api/user/account` requires the password and removes jobs, templates and tokens in a transaction (or add `onDelete: Cascade` in the schema)
+- [ ] Decide the prompt-assistant contract (`{ useCase, examples }` or `{ description, context }`), update the other side and the default provider
+- [ ] Switch the pages to `apiClient`: settings, input, register, forgot-password, reset-password, refine, `TemplateManagement`, and check how `AuthProvider` obtains the backend token before each call
+- [ ] Delete `app/src/app/api/{templates,refine,user}` and the `auth/{register,forgot-password,reset-password}` routes, then retest login, registration, reset, templates, account deletion and the assistant against a real database
+- [ ] Then decide on the duplicated Prisma schema (`app/prisma` vs `backend/prisma`)
 
 ### Phase E: Deployment and operations
 

@@ -148,6 +148,8 @@ promptflow/
 
 `app/prisma/schema.prisma` and `backend/prisma/schema.prisma` are identical today. Change both when you change the schema.
 
+The frontend's `app/src/app/api/` routes are **not** redundant copies of the backend: the pages use them for registration, password reset (including the email), password change, account deletion, templates and the prompt assistant, and their behaviour differs from the backend routes. See issues 8 to 10 and Phase F in `IMPLEMENTATION_PLAN.md` before removing any.
+
 ## Usage
 
 ### 1. Configure Prompts
@@ -219,7 +221,7 @@ The `.env.example` files are the reference. The main variables:
 | `JWT_SECRET` | Secret used to sign JWTs |
 | `INTERNAL_API_SECRET` | Shared with the frontend for the session-to-JWT exchange |
 | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `XAI_API_KEY` | LLM provider keys. A job fails with a clear error if its provider has no key. |
-| `RESEND_API_KEY`, `EMAIL_FROM` | Password reset emails |
+| `RESEND_API_KEY`, `EMAIL_FROM` | Not used by the backend code today: password reset emails are sent by the frontend |
 | `FRONTEND_URL` | Allowed CORS origin (default `http://localhost:3000`) |
 | `PORT` | Server port (default `4000`) |
 | `INNGEST_DEV` | `1` for the Inngest dev server, `0` otherwise |
