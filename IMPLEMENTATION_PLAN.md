@@ -2,739 +2,230 @@
 
 ## Executive Summary
 
-PromptFlow is a web-based tool for configuring prompts, processing data through LLMs (batch or single), and displaying outputs with support for prompt chaining. **The backend is powered by n8n workflows**, providing visual workflow design, built-in LLM nodes, and robust execution. This document outlines the phased implementation approach.
+PromptFlow is a web-based tool for configuring prompts, processing data through LLMs (batch or single), and displaying outputs with support for prompt chaining.
+
+**The n8n backend described in earlier versions of this plan was abandoned.** Processing now runs in a standalone Hono service (`backend/`) that calls the LLM providers directly (`backend/src/lib/llm-client.ts`) and hands jobs to a self-hosted **Inngest** server for durable, retryable execution. This document reflects the code as read on 2026-10-25 and lists what remains.
+
+### Status legend
+
+- **[x]** Verified in the code (backend files read on 2026-10-25).
+- **[ ]** Not done, or not verified. The Next.js frontend (`app/`) was **not** inspected in this revision, so every frontend item stays unchecked until someone confirms it.
 
 ---
 
-## Tech Stack
+## Tech Stack (current)
 
-| Layer | Technology | Rationale |
-|-------|------------|-----------|
-| **Frontend** | Next.js 14 + React 18 | App router, SSR, great DX |
-| **Styling** | TailwindCSS + shadcn/ui | Modern, accessible components |
-| **State** | Zustand | Lightweight, minimal boilerplate |
-| **Backend API** | Next.js API Routes (thin) | Template storage, job tracking |
-| **Workflow Engine** | n8n (self-hosted) | Visual workflows, LLM nodes, batch processing |
-| **Database** | SQLite (local) / PostgreSQL (prod) | Simple start, scalable later |
-| **ORM** | Prisma | Type-safe, migrations, multi-DB |
-| **Auth** | NextAuth.js (optional) | API key protection |
-| **Deployment** | Docker Compose | n8n + Next.js unified stack |
+| Layer | Technology | Notes |
+|-------|------------|-------|
+| **Frontend** | Next.js 14 + React 18 (`app/`) | Zustand, TailwindCSS, `react-markdown`, `next-auth` in dependencies |
+| **Backend API** | Hono on Node (`backend/`, port 4000) | Routes: `/api/auth`, `/api/templates`, `/api/jobs`, `/api/user`, `/api/refine`, `/health` |
+| **Background jobs** | Inngest (self-hosted) | Function `process-job`, event `job/process.requested`, synced at `/api/inngest` |
+| **LLM access** | Direct `fetch` to OpenAI, Anthropic, xAI | Keys come from server environment variables |
+| **Database** | PostgreSQL via Prisma 5 | JSON stored as `String` columns, not `Json` |
+| **Auth** | JWT (`jose`) as `Authorization: Bearer`, passwords hashed with `bcryptjs`, reset emails via `resend` | |
+| **Deployment** | Docker Compose, Coolify (`docker-compose.coolify.yml`, `COOLIFY_DEPLOYMENT.md`) | |
 
 ---
 
-## Architecture Overview
+## Architecture (current)
 
 ```
-┌────────────────────────────────────────────────────────────────────┐
-│                         FRONTEND (Next.js)                         │
-│  Configure prompts, upload data, display results                   │
-└─────────────────────────────┬──────────────────────────────────────┘
-                              │
-          ┌───────────────────┼───────────────────┐
-          ▼                   ▼                   ▼
-┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────┐
-│ Next.js API     │  │ n8n Webhook     │  │ n8n Webhook             │
-│ /api/templates  │  │ /process-single │  │ /process-batch          │
-│ (CRUD)          │  │                 │  │                         │
-└────────┬────────┘  └────────┬────────┘  └────────┬────────────────┘
-         │                    │                    │
-         ▼                    └─────────┬──────────┘
-┌─────────────────┐                     ▼
-│   Database      │         ┌───────────────────────────────────────┐
-│   (SQLite/PG)   │         │            n8n WORKFLOW               │
-│   - Templates   │         │  ┌─────────────────────────────────┐  │
-│   - Jobs        │         │  │  1. Receive config + data       │  │
-└─────────────────┘         │  │  2. Loop through data items     │  │
-                            │  │  3. Format prompts              │  │
-                            │  │  4. Call LLM (OpenAI/Claude)    │  │
-                            │  │  5. Chain outputs if needed     │  │
-                            │  │  6. Return aggregated results   │  │
-                            │  └─────────────────────────────────┘  │
-                            └───────────────────────────────────────┘
-```
-
----
-
-## Project Structure
-
-```
-promptflow/
-├── src/
-│   ├── app/                    # Next.js App Router
-│   │   ├── page.tsx            # Home/Dashboard
-│   │   ├── configure/
-│   │   │   └── page.tsx        # Configuration Page
-│   │   ├── input/
-│   │   │   └── page.tsx        # Input Page  
-│   │   ├── output/
-│   │   │   └── page.tsx        # Output/Results Page
-│   │   ├── api/
-│   │   │   ├── templates/
-│   │   │   │   └── route.ts    # Save/load configs (local DB)
-│   │   │   └── jobs/
-│   │   │       └── [id]/
-│   │   │           └── route.ts # Job status tracking
-│   │   └── layout.tsx          # Root layout with sidebar
-│   ├── components/
-│   │   ├── ui/                 # shadcn/ui components
-│   │   ├── sidebar.tsx
-│   │   ├── prompt-editor.tsx
-│   │   ├── data-uploader.tsx
-│   │   ├── results-table.tsx
-│   │   ├── progress-bar.tsx
-│   │   └── theme-toggle.tsx
-│   ├── lib/
-│   │   ├── n8n-client.ts       # n8n webhook client
-│   │   ├── parsers/
-│   │   │   ├── csv.ts
-│   │   │   └── json.ts
-│   │   ├── validators.ts       # Input validation
-│   │   └── db.ts               # Prisma client
-│   ├── store/
-│   │   ├── config-store.ts     # Prompt/settings state
-│   │   ├── input-store.ts      # Data input state
-│   │   └── job-store.ts        # Job/output state
-│   └── types/
-│       └── index.ts            # Shared TypeScript types
-├── n8n/
-│   └── workflows/
-│       ├── process-single.json      # Single item workflow
-│       ├── process-batch.json       # Batch processing workflow  
-│       └── prompt-chain.json        # Reusable chaining sub-workflow
-├── prisma/
-│   └── schema.prisma           # Database schema
-├── public/
-├── .env.example
-├── docker-compose.yml          # n8n + Next.js + DB
-├── Dockerfile
-├── package.json
-├── tailwind.config.ts
-├── tsconfig.json
-└── README.md
-```
-
----
-
-## Phase 1: Foundation (Week 1-2)
-
-### 1.1 Project Setup
-- [ ] Initialize Next.js 14 project with TypeScript
-- [ ] Configure TailwindCSS + shadcn/ui
-- [ ] Set up Prisma with SQLite
-- [ ] Create base folder structure
-- [ ] Configure ESLint/Prettier
-- [ ] Create `.env.example` with required variables
-
-### 1.2 n8n Setup
-- [ ] Set up n8n via Docker (self-hosted)
-- [ ] Configure n8n credentials for LLM providers (OpenAI, Anthropic)
-- [ ] Create webhook endpoints for frontend communication
-- [ ] Test basic n8n → LLM connectivity
-
-### 1.3 Database Schema
-```prisma
-model Template {
-  id          String   @id @default(cuid())
-  name        String
-  systemPrompt String
-  userPrompts  Json     // Array of prompt strings
-  settings    Json     // temperature, maxTokens, provider, model
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-
-model Job {
-  id          String   @id @default(cuid())
-  n8nExecutionId String?  // Link to n8n execution for tracking
-  status      String   // pending, running, completed, failed
-  templateId  String?
-  config      Json     // Snapshot of config at run time
-  inputData   Json     // Array of input items
-  results     Json?    // Array of results
-  logs        Json?    // Execution logs
-  tokenUsage  Int      @default(0)
-  startedAt   DateTime?
-  completedAt DateTime?
-  createdAt   DateTime @default(now())
-}
-```
-
-### 1.4 Core Layout
-- [ ] Root layout with sidebar navigation
-- [ ] Theme toggle (dark/light mode)
-- [ ] Responsive design foundation
-- [ ] Navigation: Configure → Input → Output
-
----
-
-## Phase 2: Configuration Page (Week 2-3)
-
-### 2.1 UI Components
-- [ ] **System Prompt Editor**: Large textarea with placeholder hints
-- [ ] **User Prompt Editor(s)**: 1-3 prompts with add/remove buttons
-  - Support `{input}` placeholder for data
-  - Support `{previous_output}` for chaining
-- [ ] **Placeholder Validator**: Real-time warning if placeholders missing
-- [ ] **Settings Panel**:
-  - LLM Provider dropdown (OpenAI, Anthropic, Custom)
-  - Model selector (GPT-4, GPT-3.5, Claude 3, etc.)
-  - Temperature slider (0-2)
-  - Max tokens input
-- [ ] **Batch Options**:
-  - Single/Batch toggle
-  - Parallel limit input (1-10, default 5)
-- [ ] **Template Management**:
-  - Save current config as template
-  - Load from saved templates
-  - Delete templates
-
-### 2.2 API Endpoints (Next.js - Templates Only)
-- [ ] `POST /api/templates` - Save template
-- [ ] `GET /api/templates` - List templates
-- [ ] `GET /api/templates/[id]` - Get single template
-- [ ] `DELETE /api/templates/[id]` - Delete template
-
-### 2.3 State Management
-- [ ] Zustand store for configuration state
-- [ ] Persist config to localStorage
-- [ ] Validation logic for required fields
-
----
-
-## Phase 3: Input Page (Week 3-4)
-
-### 3.1 UI Components
-- [ ] **Single Input Mode**: Large textarea for single data item
-- [ ] **Batch Input Mode**:
-  - File upload dropzone (CSV, JSON)
-  - Paste textarea for quick batch entry
-  - Column/field selector for CSV
-- [ ] **Data Preview**:
-  - Table showing first 5-10 items
-  - Total item count
-  - Data validation status
-- [ ] **Prompt Preview**: 
-  - Show formatted prompt with first data item substituted
-  - Real-time update as prompts change
-- [ ] **Run Button**: Primary action, disabled if invalid
-
-### 3.2 Parsers
-- [ ] CSV parser with header detection
-- [ ] JSON array parser
-- [ ] Plain text (newline-separated) parser
-- [ ] Validation and error messages
-
-### 3.3 State Management
-- [ ] Zustand store for input data
-- [ ] Parsed items array
-- [ ] Validation errors
-
----
-
-## Phase 4: n8n Workflow Engine (Week 4-5)
-
-### 4.1 n8n Workflow: Single Item Processing
-
-**Workflow: `process-single.json`**
-```
-┌─────────────┐    ┌──────────────┐    ┌─────────────┐    ┌──────────────┐
-│  Webhook    │───▶│  Set Variables│───▶│  Loop Prompts│───▶│  LLM Node    │
-│  Trigger    │    │  (parse input)│    │  (if chain)  │    │  (OpenAI/    │
-└─────────────┘    └──────────────┘    └─────────────┘    │   Claude)    │
-                                                          └──────┬───────┘
-                                                                 │
-                                              ┌──────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                    FRONTEND (Next.js, app/)                  │
+│  Configure prompts, upload data, display results             │
+└─────────────────────────────┬───────────────────────────────┘
+                              │  Bearer JWT
+                              ▼
+                    ┌─────────────────────┐
+                    │   BACKEND (Hono)    │
+                    │  /api/jobs          │
+                    │  /api/templates     │
+                    │  /api/refine        │
+                    │  /api/auth, /user   │
+                    └──────────┬──────────┘
+                     ┌─────────┴─────────┐
+                     ▼                   ▼
+          ┌─────────────────┐   ┌───────────────────────────┐
+          │   PostgreSQL     │   │  Inngest (self-hosted)     │
+          │  - User          │   │  process-job               │
+          │  - Template      │   │  • one step per item       │
+          │  - Job           │   │  • processWithChaining()   │
+          │  - ResetToken    │   │  • retries per step        │
+          └─────────────────┘   └─────────────┬─────────────┘
                                               ▼
-                                       ┌─────────────┐    ┌──────────────┐
-                                       │  Aggregate  │───▶│  Respond to  │
-                                       │  Results    │    │  Webhook     │
-                                       └─────────────┘    └──────────────┘
+                                  OpenAI / Anthropic / xAI
 ```
 
-**Webhook Input Payload:**
-```json
-{
-  "jobId": "abc123",
-  "systemPrompt": "You are an expert analyst.",
-  "userPrompts": [
-    "Summarize: {input}",
-    "Extract insights from: {previous_output}"
-  ],
-  "settings": {
-    "provider": "openai",
-    "model": "gpt-4",
-    "temperature": 0.7,
-    "maxTokens": 1000
-  },
-  "dataItem": "Sales data for Q1..."
-}
-```
-
-**Webhook Response:**
-```json
-{
-  "jobId": "abc123",
-  "input": "Sales data for Q1...",
-  "intermediates": ["Summary output..."],
-  "finalOutput": "Key insights: ...",
-  "tokenUsage": { "prompt": 150, "completion": 200 },
-  "status": "success"
-}
-```
-
-### 4.2 n8n Workflow: Batch Processing
-
-**Workflow: `process-batch.json`**
-```
-┌─────────────┐    ┌──────────────┐    ┌─────────────────┐
-│  Webhook    │───▶│  Split Items │───▶│  SplitInBatches │
-│  Trigger    │    │  to Array    │    │  (concurrency)  │
-└─────────────┘    └──────────────┘    └────────┬────────┘
-                                                │
-                   ┌────────────────────────────┘
-                   ▼
-            ┌─────────────┐    ┌─────────────┐    ┌──────────────┐
-            │  Execute    │───▶│  LLM Chain  │───▶│  Merge       │
-            │  Sub-workflow│    │  (per item) │    │  Results     │
-            └─────────────┘    └─────────────┘    └──────┬───────┘
-                                                         │
-                                                         ▼
-                                                  ┌──────────────┐
-                                                  │  Callback to │
-                                                  │  Next.js API │
-                                                  └──────────────┘
-```
-
-**Batch Webhook Input:**
-```json
-{
-  "jobId": "batch-456",
-  "systemPrompt": "...",
-  "userPrompts": ["..."],
-  "settings": { ... },
-  "dataItems": ["item1", "item2", "item3"],
-  "batchSize": 5,
-  "callbackUrl": "http://nextjs:3000/api/jobs/batch-456/callback"
-}
-```
-
-### 4.3 n8n Workflow Implementation Tasks
-- [ ] Create webhook trigger node with authentication
-- [ ] Build prompt formatting using n8n expressions: `{{ $json.userPrompt.replace('{input}', $json.dataItem) }}`
-- [ ] Configure OpenAI node with dynamic credentials
-- [ ] Configure Anthropic node (Claude) as alternative
-- [ ] Implement prompt chaining via Loop node
-- [ ] Add SplitInBatches for concurrency control
-- [ ] Build error handling with retry logic (n8n built-in)
-- [ ] Create callback HTTP node to update Next.js job status
-- [ ] Export workflows as JSON for version control
-
-### 4.4 n8n Client (Frontend)
-```typescript
-// src/lib/n8n-client.ts
-const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
-
-export async function processSingle(payload: SingleProcessPayload) {
-  const response = await fetch(`${N8N_WEBHOOK_URL}/process-single`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  return response.json();
-}
-
-export async function processBatch(payload: BatchProcessPayload) {
-  // Fire-and-forget; n8n will callback when done
-  await fetch(`${N8N_WEBHOOK_URL}/process-batch`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-}
-```
-
-### 4.5 Job Tracking API (Next.js)
-- [ ] `POST /api/jobs` - Create job record, trigger n8n
-- [ ] `GET /api/jobs/[id]` - Get job status/results
-- [ ] `POST /api/jobs/[id]/callback` - n8n callback to update job
-- [ ] `DELETE /api/jobs/[id]` - Cancel job (calls n8n execution cancel API)
-
-### 4.6 Error Handling (n8n)
-- [ ] Configure retry on failure (3 attempts, exponential backoff)
-- [ ] Error workflow for logging failures
-- [ ] Per-item error capture (continue on error)
-- [ ] Timeout configuration for LLM calls
+`POST /api/jobs` writes the job, sets it to `running`, sends `job/process.requested`, and returns `201`. If the event cannot be sent the job is marked `failed` and the route returns `503`. The frontend polls `GET /api/jobs/:id` until the status is terminal.
 
 ---
 
-## Phase 5: Output Page (Week 5-6)
+## Data model (current)
 
-### 5.1 UI Components
-- [ ] **Results Table**:
-  - Columns: Index, Input (truncated), Output (truncated), Status
-  - Expandable rows for full content
-  - Chain intermediates in nested view
-  - Sortable/filterable
-- [ ] **Progress Indicator**:
-  - Progress bar during processing
-  - Items completed / total
-  - Estimated time remaining
-- [ ] **Summary Stats**:
-  - Total tokens used
-  - Total runtime
-  - Success/failure counts
-- [ ] **Logs Panel**:
-  - Collapsible log viewer
-  - Filter by level (info, warn, error)
-  - Timestamp + message
-- [ ] **Actions**:
-  - Download CSV button
-  - Download JSON button
-  - Re-run all / Re-run failed
-  - Edit & retry single item
+Source: `backend/prisma/schema.prisma`.
 
-### 5.2 Real-time Updates
-- [ ] Polling or SSE for job progress
-- [ ] Optimistic UI updates
-- [ ] Toast notifications for completion/errors
-
-### 5.3 Export
-- [ ] CSV export with all columns
-- [ ] JSON export with full structure
-- [ ] Optional: include intermediates
+- **User**: `id`, `email` (unique), `password` (hash), `name?`, `role` (`user` | `admin`).
+- **PasswordResetToken**: `token` (unique), `expiresAt`, cascade-deleted with the user.
+- **Template**: `name`, `systemPrompt`, `userPrompts` (JSON array as string), `settings` (JSON object as string), `userId`.
+- **Job**: `status` (`pending` | `running` | `completed` | `failed` | `cancelled`), `config` (snapshot), `inputData` (JSON array as string), `results`, `logs`, `tokenUsage`, `startedAt`, `completedAt`, optional `templateId`.
+- `Job.n8nExecutionId` is a leftover of the n8n design and is unused. It can be dropped in a migration.
 
 ---
 
-## Phase 6: Polish & Security (Week 6-7)
+## Prompt placeholders (current behaviour)
 
-### 6.1 API Key Management
-- [ ] Secure storage in environment variables
-- [ ] UI to set keys (stored encrypted in DB or localStorage)
-- [ ] Key validation on save
-- [ ] Never expose keys to client
+Verified in `backend/src/lib/llm-client.ts`:
 
-### 6.2 Input Validation
-- [ ] Max data items limit (configurable)
-- [ ] Max prompt length validation
-- [ ] Sanitize inputs to prevent injection
-
-### 6.3 UI Polish
-- [ ] Loading states everywhere
-- [ ] Empty states with guidance
-- [ ] Keyboard shortcuts
-- [ ] Mobile responsiveness audit
-- [ ] Accessibility audit (ARIA labels, focus management)
-
-### 6.4 Error UX
-- [ ] User-friendly error messages
-- [ ] Retry suggestions
-- [ ] Help tooltips
+- `{input}`: replaced by the data item. **One string per item.** `inputData` is a `string[]`; there are no named fields or CSV columns at the backend level.
+- `{previous_output}`: replaced by the output of the previous step. Only meaningful in chains with two or more prompts.
+- Substitution is a global regex `replace` on the user prompts only. The system prompt is not templated. Unknown `{...}` tokens are left as they are.
+- With one user prompt the job makes a single LLM call. With several, each step is a separate call, the system prompt is reused, and every output except the last is stored in `intermediates`.
 
 ---
 
-## Phase 7: Deployment (Week 7-8)
+## Delivered (backend)
 
-### 7.1 Docker Setup
-
-```dockerfile
-# Dockerfile (Next.js frontend)
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npx prisma generate
-RUN npm run build
-EXPOSE 3000
-CMD ["npm", "start"]
-```
-
-```yaml
-# docker-compose.yml
-version: '3.8'
-
-services:
-  # Next.js Frontend
-  app:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - DATABASE_URL=file:/app/data/promptflow.db
-      - N8N_WEBHOOK_URL=http://n8n:5678/webhook
-    volumes:
-      - ./data:/app/data
-    depends_on:
-      - n8n
-
-  # n8n Workflow Engine
-  n8n:
-    image: n8nio/n8n:latest
-    ports:
-      - "5678:5678"
-    environment:
-      - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
-      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-changeme}
-      - N8N_HOST=localhost
-      - N8N_PORT=5678
-      - N8N_PROTOCOL=http
-      - WEBHOOK_URL=http://n8n:5678/
-      - GENERIC_TIMEZONE=UTC
-      # LLM API Keys
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-    volumes:
-      - n8n_data:/home/node/.n8n
-      - ./n8n/workflows:/home/node/workflows
-    restart: unless-stopped
-
-  # Optional: PostgreSQL for production
-  # postgres:
-  #   image: postgres:15-alpine
-  #   environment:
-  #     - POSTGRES_USER=promptflow
-  #     - POSTGRES_PASSWORD=${DB_PASSWORD}
-  #     - POSTGRES_DB=promptflow
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
-
-volumes:
-  n8n_data:
-  # postgres_data:
-```
-
-### 7.2 Documentation
-- [ ] README with setup instructions
-- [ ] Environment variables documentation
-- [ ] API documentation (optional)
-
-### 7.3 Testing
-- [ ] Unit tests for processors
-- [ ] Integration tests for API routes
-- [ ] E2E tests for critical flows (Playwright)
+- [x] Hono service with CORS, request logging, health check, 404 and error handlers
+- [x] Auth: register, login, forgot/reset password (Resend), JWT middleware on `templates`, `jobs`, `refine`
+- [x] Templates: list, create, get, delete (per user)
+- [x] Jobs: create, list (with item counts), get, cancel/delete
+- [x] Inngest function `process-job`: one durable step per item, per-item error capture, job naming from template name plus a summary of the first successful output, token totals
+- [x] LLM client with three providers, a 2-minute timeout per call, and a clear error when a key is missing or the provider is unsupported
+- [x] Prompt chaining with `{previous_output}` and stored intermediates
+- [x] Prompt assistant (`/api/refine/generate`, `/refine`, `/test`)
+- [x] Fail-fast `503` when the job queue is unreachable, so jobs do not stay `running` forever
+- [x] Docker/Coolify deployment files
 
 ---
 
-## Data Flow Diagram
+## Known issues (found while reading the code)
+
+Ordered by impact. None of these has been reproduced by running the service.
+
+1. ~~**Cancel does not stop a job.**~~ **Fixed 2026-10-25.** `DELETE /api/jobs/:id` set `cancelled` but `process-job` never re-read the status, so it kept calling the LLM for every remaining item and `finalize-job` overwrote the status. Now each item step re-reads the status and stops before the LLM call, and `finalize-job` / `mark-job-failed` write the final status with `updateMany` guarded by `status != 'cancelled'`. Results obtained before the cancel are kept. An LLM call already in flight when the cancel arrives still completes. Covered by `backend/src/inngest/functions.test.ts` (`npm test` in `backend/`).
+2. **Items run one after another.** The loop in `process-job` is sequential, `isBatch` is computed and then discarded (`void isBatch`), and no concurrency limit exists. The earlier plan promised a parallel limit of 1 to 10. A batch of 200 items takes 200 sequential calls.
+3. **Replacement strings are interpreted.** `prompt.replace(/\{input\}/g, dataItem)` treats `$&`, `$1` and `$$` inside the data as replacement patterns. Data containing those sequences is silently altered. Use a replacer function: `.replace(re, () => dataItem)`. In chains, `{input}` is substituted before `{previous_output}`, so an input containing the text `{previous_output}` gets replaced by the previous output; do both in a single pass.
+4. **A job is `failed` as soon as one item fails**, even when the others succeeded (`hasErrors ? 'failed' : 'completed'`). Consider a `partial` status, and a "re-run failed items" action.
+5. **The server pays for every call.** API keys come from `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` and `XAI_API_KEY` on the server. There is no per-user quota, no item limit and no cost estimate. `/api/refine/*` always uses OpenAI `gpt-4o-mini`, so it fails if only another key is configured.
+6. **Outdated default models.** The fallback in `POST /api/jobs` uses `claude-3-sonnet-20240229` and `gpt-4`. Update to current models and make them configurable.
+7. **Provider fallback is silent.** An unsupported or missing provider is replaced by whichever key exists, without telling the user which model actually ran.
+
+---
+
+## Remaining work
+
+### Phase A: Fix the engine
+
+- [x] Make cancel effective (issue 1)
+- [ ] Add a concurrency setting and process items in parallel groups inside Inngest (issue 2)
+- [ ] Safe single-pass substitution (issue 3)
+- [ ] Partial-failure status and re-run failed items (issue 4)
+- [ ] Update default models and surface the model actually used in the results (issues 6, 7)
+- [ ] Drop `n8nExecutionId`
+- [ ] Unit tests for `buildPrompt` / `processWithChaining` (placeholders, `$` sequences, chains, empty output)
+
+### Phase B: Limits and cost control
+
+- [ ] Maximum items per job, maximum prompt length, per-user daily token budget
+- [ ] Cost estimate before running, based on the template and the item count
+- [ ] Decide who pays for LLM calls: the server (today) or the user with their own key. The decision drives the Promptothèque integration below.
+
+### Phase C: Frontend (to verify, then complete)
+
+- [ ] Confirm which of these exist in `app/`: configure page, input page (CSV/JSON/paste), output page, templates, job history, theme toggle
+- [ ] Prompt preview with the first data item substituted
+- [ ] Progress bar from polled job state, exports (CSV, JSON, optional intermediates)
+- [ ] Mobile layout and accessibility pass
+
+### Phase D: Integration with Promptothèque
+
+Goal: from a prompt page on Promptothèque, one action opens it in PromptFlow, ready to run on the user's own data. The two products stay separate codebases and deployments; only the template crosses the boundary.
+
+**Format differences** (Promptothèque source: a Markdown file with front matter, for example `content/prompts/construire-un-plan-de-compte.md`)
+
+| | Promptothèque | PromptFlow |
+|---|---|---|
+| Variable syntax | `{{client}}` | `{input}`, `{previous_output}` |
+| Variables | Several named ones, each with `libelle` and `exemple` | A single `{input}` string per item |
+| Structure | One body: Rôle / Tâche / Contexte / Format de sortie | `systemPrompt` plus `userPrompts[]` plus `settings` |
+| Sample output | After `<!-- exemple-de-sortie -->` | None |
+
+**Mapping**
+
+- `## Rôle` becomes `systemPrompt`. `## Tâche`, `## Contexte` and `## Format de sortie` become `userPrompts[0]`.
+- Only variables declared in the front matter are converted, so literal braces in a prompt (JSON examples) are left alone.
+- The sample output and the `libelle`/`exemple` metadata have no home today. Keep `exemple` to prefill the input table.
+
+**Required engine change: named fields.** Today `{{client}}` cannot be expressed. Two options:
+
+- **Minimal, works with the current engine:** the converter replaces the variables with one `{input}` and the user types a block of text such as `Client : … / Situation : …`. Valid, but a batch gives no structure.
+- **Recommended:** allow `inputData` items to be objects. `{client}` is then replaced from the key `client`; `{input}` keeps its meaning for plain strings. CSV columns and JSON object keys map directly to variables, which is what makes batch runs useful for these prompts (the same account-plan prompt over 50 clients). Backward compatible: string items behave exactly as today. Unknown placeholders stay untouched, and the input page should warn about placeholders with no matching column.
+
+**Tasks**
+
+- [ ] Extend `inputData` to `(string | Record<string, string>)[]`, validate it in `POST /api/jobs`, and substitute named fields in a single pass (reuse the fix from issue 3)
+- [ ] Store the variable list on the template (name, label, example) so the input page can show a form or an empty CSV header
+- [ ] `POST /api/templates/import` (authenticated): accepts a Promptothèque prompt (slug or payload) and returns a template as described above
+- [ ] Hand-off from Promptothèque: a link to PromptFlow that passes the prompt identifier. After sign-in, PromptFlow fetches the public prompt and creates the template. No shared login in the first version.
+- [ ] Later, if usage justifies it: a shared account, so a Promptothèque paid plan unlocks PromptFlow
+- [ ] Settle chain syntax: Promptothèque's multi-step chains (`etapesEnchainement` in `lib/plans.ts`) were not read for this revision. Compare them with `{previous_output}` before promising that chains transfer.
+
+### Phase E: Deployment and operations
+
+- [ ] Keep `COOLIFY_DEPLOYMENT.md` and `docker-compose.coolify.yml` as the source of truth; remove any remaining n8n references from the README, `.env.n8n` and `n8n/` if still present
+- [ ] Document required environment variables for the backend: `DATABASE_URL`, `JWT_SECRET`, the three LLM keys, `INNGEST_BASE_URL`, `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`, `FRONTEND_URL`, `PORT`
+- [ ] Integration tests for `/api/jobs` (including the `503` path and cancel), and one end-to-end test of configure, run and export
+
+---
+
+## Prompt chaining example
+
+**Config**
+
+- System prompt: "You are an expert data analyst."
+- User prompt 1: "Summarize this data: {input}"
+- User prompt 2: "Based on this summary: {previous_output}, identify 3 key insights."
+- User prompt 3: "Format these insights as bullet points: {previous_output}"
+
+**Input item:** "Sales in Q1 were $1.2M, Q2 $1.5M, Q3 $1.1M, Q4 $1.8M"
+
+**Execution** (`processWithChaining`)
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     USER INTERFACE (Next.js)                     │
-├─────────────────┬─────────────────┬─────────────────────────────┤
-│  CONFIGURE      │     INPUT       │          OUTPUT             │
-│  ─────────      │     ─────       │          ──────             │
-│  System Prompt  │  Upload/Paste   │  Results Table              │
-│  User Prompts   │  Data Preview   │  Progress Bar               │
-│  LLM Settings   │  Run Button     │  Logs & Stats               │
-│  Templates      │                 │  Export & Retry             │
-└────────┬────────┴────────┬────────┴──────────────┬──────────────┘
-         │                 │                       │
-         ▼                 ▼                       ▲
-┌─────────────────────────────────────────────────────────────────┐
-│                      ZUSTAND STATE STORES                        │
-│  config-store.ts    input-store.ts    job-store.ts              │
-└─────────────────────────────────────────────────────────────────┘
-         │                 │                       ▲
-         ▼                 ▼                       │
-┌─────────────────┐  ┌────────────────────────────────────────────┐
-│ Next.js API     │  │              n8n WEBHOOKS                  │
-│ /api/templates  │  │  POST /webhook/process-single              │
-│ /api/jobs       │  │  POST /webhook/process-batch               │
-└────────┬────────┘  └───────────────────┬────────────────────────┘
-         │                               │
-         ▼                               ▼
-┌─────────────────┐  ┌────────────────────────────────────────────┐
-│   Database      │  │              n8n WORKFLOW ENGINE           │
-│   (SQLite/PG)   │  │  ┌──────────────────────────────────────┐  │
-│   - Templates   │  │  │  For each data item:                 │  │
-│   - Jobs        │  │  │  1. Format prompt: {input} → data    │  │
-└─────────────────┘  │  │  2. Call LLM node (OpenAI/Claude)    │  │
-         ▲           │  │  3. If chaining:                     │  │
-         │           │  │     - Store output                   │  │
-         │           │  │     - Format next: {previous_output} │  │
-         │           │  │     - Loop until done                │  │
-         │           │  │  4. Return results                   │  │
-         │           │  └──────────────────────────────────────┘  │
-         │           │                                            │
-         │           │  Batch: SplitInBatches node (concurrency)  │
-         │           │  Retry: Built-in error handling            │
-         │           └─────────────────┬──────────────────────────┘
-         │                             │
-         │  ┌──────────────────────────┘
-         │  │ Callback: POST /api/jobs/[id]/callback
-         │  ▼
-         └─────────────────────────────────────────────────────────
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     LLM PROVIDERS (via n8n)                      │
-│  ┌──────────┐  ┌──────────────┐  ┌────────────┐                 │
-│  │  OpenAI  │  │  Anthropic   │  │  HTTP Req  │                 │
-│  │  Node    │  │  Node        │  │  (Custom)  │                 │
-│  └──────────┘  └──────────────┘  └────────────┘                 │
-└─────────────────────────────────────────────────────────────────┘
+Step 1: LLM(system, "Summarize this data: Sales in Q1...")        → summary
+Step 2: LLM(system, "Based on this summary: <summary>, ...")       → insights
+Step 3: LLM(system, "Format these insights as bullet points: ...") → final
+
+Result: { input, intermediates: [summary, insights], finalOutput, tokenUsage, status }
 ```
 
 ---
 
-## Prompt Chaining Example
+## Future enhancements (post-MVP)
 
-**Config:**
-- System Prompt: "You are an expert data analyst."
-- User Prompt 1: "Summarize this data: {input}"
-- User Prompt 2: "Based on this summary: {previous_output}, identify 3 key insights."
-- User Prompt 3: "Format these insights as bullet points: {previous_output}"
-
-**Input Data Item:** "Sales in Q1 were $1.2M, Q2 $1.5M, Q3 $1.1M, Q4 $1.8M"
-
-**Execution Flow:**
-```
-Step 1: LLM(system, "Summarize this data: Sales in Q1...")
-        → Output: "Annual sales totaled $5.6M with Q4 being strongest..."
-
-Step 2: LLM(system, "Based on this summary: Annual sales totaled..., identify 3 key insights.")
-        → Output: "1. Strong Q4 performance, 2. Q3 dip needs investigation..."
-
-Step 3: LLM(system, "Format these insights as bullet points: 1. Strong Q4...")
-        → Output: "• Strong Q4 performance\n• Q3 dip needs investigation..."
-
-Final Result: {
-  input: "Sales in Q1...",
-  intermediates: [step1_output, step2_output],
-  finalOutput: "• Strong Q4 performance..."
-}
-```
+1. **Job history**: browse and re-run past jobs (the list endpoint already exists)
+2. **Webhooks**: notify external systems on completion
+3. **Scheduling**: recurring runs
+4. **File inputs**: PDF, DOCX
+5. **Streaming**: real-time output display
+6. **Branching chains**: conditional logic between steps
+7. **Public API**: tokens for programmatic use
+8. **Bring your own key**: per-user provider keys, stored encrypted (depends on the Phase B decision)
 
 ---
 
-## Milestones & Timeline
-
-| Week | Milestone | Deliverables |
-|------|-----------|--------------|
-| 1-2 | Foundation | Project setup, DB schema, base layout |
-| 2-3 | Configuration | Config page fully functional, templates |
-| 3-4 | Input | Data upload, parsing, preview |
-| 4-5 | Engine | LLM integration, chaining, batch processing |
-| 5-6 | Output | Results display, export, logs |
-| 6-7 | Polish | Security, validation, UX refinement |
-| 7-8 | Deploy | Docker, docs, testing |
-
----
-
-## Future Enhancements (Post-MVP)
-
-1. **Authentication**: Multi-user support with NextAuth
-2. **Job History**: Browse and re-run past jobs
-3. **Webhooks**: Notify external systems on completion
-4. **Scheduling**: Cron-based recurring runs
-5. **File Inputs**: PDF, DOCX parsing
-6. **Streaming**: Real-time output display
-7. **Cost Estimation**: Show estimated cost before running
-8. **Prompt Library**: Shared prompt templates
-9. **Branching Chains**: Conditional logic in prompts
-10. **API Access**: REST API for programmatic use
-
----
-
-## Getting Started (Quick Reference)
-
-```bash
-# 1. Clone and install
-git clone <repo>
-cd promptflow
-npm install
-
-# 2. Set up environment
-cp .env.example .env.local
-# Edit .env.local with your API keys:
-#   OPENAI_API_KEY=sk-...
-#   ANTHROPIC_API_KEY=sk-ant-...
-#   N8N_USER=admin
-#   N8N_PASSWORD=your-secure-password
-
-# 3. Start n8n and database
-docker-compose up -d n8n
-
-# 4. Initialize database
-npx prisma generate
-npx prisma db push
-
-# 5. Import n8n workflows
-# Open http://localhost:5678
-# Import workflows from n8n/workflows/*.json
-# Configure LLM credentials in n8n
-
-# 6. Run Next.js development server
-npm run dev
-
-# 7. Open http://localhost:3000
-```
-
----
-
-## n8n Workflow Setup Guide
-
-### Initial n8n Configuration
-1. Access n8n at `http://localhost:5678`
-2. Create credentials:
-   - **OpenAI**: Settings → Credentials → Add → OpenAI API
-   - **Anthropic**: Settings → Credentials → Add → HTTP Header Auth (for Claude)
-3. Import workflows from `n8n/workflows/` directory
-4. Activate webhook triggers
-
-### Workflow Testing
-```bash
-# Test single item processing
-curl -X POST http://localhost:5678/webhook/process-single \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jobId": "test-1",
-    "systemPrompt": "You are helpful.",
-    "userPrompts": ["Say hello to {input}"],
-    "settings": {"provider": "openai", "model": "gpt-3.5-turbo"},
-    "dataItem": "World"
-  }'
-```
-
----
-
-## Risk Mitigation
+## Risk mitigation
 
 | Risk | Mitigation |
 |------|------------|
-| Rate limits | n8n SplitInBatches node with configurable concurrency |
-| API costs | Token counting in n8n, cost estimation, limits |
-| Data loss | Auto-save configs, job persistence in DB |
-| Security | API keys in n8n credentials (encrypted), never exposed to client |
-| n8n downtime | Health checks, Docker restart policy, logging |
-| Complexity | n8n visual workflows simplify debugging |
+| API costs | Item and token limits, cost estimate, per-user budget (Phase B). Today nothing limits spending. |
+| Rate limits | Concurrency setting per job (Phase A); retries already handled by Inngest steps |
+| Wasted spend on cancelled jobs | Cancel check before each item (issue 1) |
+| Data loss | Jobs and results persist in PostgreSQL; config is snapshotted on each job |
+| Key exposure | Keys are server-side environment variables and never returned to the client |
+| Queue downtime | `POST /api/jobs` returns `503` and marks the job failed; Inngest resumes in-flight jobs after a crash |
 
 ---
 
----
-
-## n8n vs Custom Backend Comparison
-
-| Aspect | n8n Backend | Custom Node.js Backend |
-|--------|-------------|------------------------|
-| **Setup time** | Fast (pre-built nodes) | Slower (code from scratch) |
-| **LLM integration** | Built-in OpenAI, Anthropic nodes | Manual SDK integration |
-| **Batch processing** | SplitInBatches node | Custom p-limit implementation |
-| **Error handling** | Built-in retry, error workflows | Manual try/catch, queues |
-| **Visual debugging** | Workflow canvas, execution history | Console logs, debugger |
-| **Extensibility** | Add nodes, custom functions | Full code control |
-| **Maintenance** | Low (n8n updates) | Higher (dependency updates) |
-| **Performance** | Good for most use cases | Can optimize hot paths |
-
-**Recommendation**: n8n is ideal for PromptFlow because:
-- Visual workflow design matches the prompt chaining concept
-- Built-in LLM nodes reduce integration code
-- SplitInBatches handles batch processing elegantly
-- Execution history aids debugging
-- Easy to extend with new LLM providers
-
----
-
-*Document Version: 2.0 (n8n Backend)*  
-*Last Updated: 2024-12-29*
+*Document version: 3.0 (Hono + Inngest, direct LLM client)*
+*Last updated: 2026-10-25*
