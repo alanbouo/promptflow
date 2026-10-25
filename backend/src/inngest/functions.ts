@@ -37,10 +37,16 @@ function generateOutputSummary(output: string): string {
   return (lastSpace > 20 ? truncated.slice(0, lastSpace) : truncated) + '...';
 }
 
-export const processJob = inngest.createFunction(
-  { id: 'process-job' },
-  { event: 'job/process.requested' },
-  async ({ event, step }: { event: ProcessJobRequestedEvent; step: any }) => {
+export interface ProcessJobDeps {
+  prisma: typeof prisma;
+  processWithChaining: typeof processWithChaining;
+}
+
+// Injectable so the handler can be tested without a database or an LLM.
+export function createProcessJobHandler(deps: ProcessJobDeps = { prisma, processWithChaining }) {
+  const { prisma, processWithChaining } = deps;
+
+  return async ({ event, step }: { event: ProcessJobRequestedEvent; step: any }) => {
     const { jobId, inputData, userPrompts, systemPrompt, settings, templateName, isBatch } = event.data;
 
     if (!inputData.length) {
@@ -52,15 +58,28 @@ export const processJob = inngest.createFunction(
 
     const results: JobResult[] = [];
     let totalTokens = 0;
+    let cancelled = false;
 
     try {
       for (let i = 0; i < inputData.length; i++) {
         const dataItem = inputData[i];
 
         try {
-          const llmResult = await step.run(`process-item-${i}`, () =>
-            processWithChaining(systemPrompt, userPrompts, dataItem, settings)
-          );
+          // Re-read the status inside the step so a cancel stops the job before
+          // the next (paid) LLM call instead of after the whole batch.
+          const llmResult = await step.run(`process-item-${i}`, async () => {
+            const current = await prisma.job.findUnique({
+              where: { id: jobId },
+              select: { status: true },
+            });
+            if (current?.status === 'cancelled') return null;
+            return processWithChaining(systemPrompt, userPrompts, dataItem, settings);
+          });
+
+          if (llmResult === null) {
+            cancelled = true;
+            break;
+          }
 
           results.push({
             input: dataItem,
@@ -92,23 +111,32 @@ export const processJob = inngest.createFunction(
           : outputSummary || `Job ${jobId.slice(0, 8)}`;
         const hasErrors = results.some((r) => r.status === 'error');
 
+        // Keep what was processed before the cancel, but never overwrite the
+        // 'cancelled' status (a cancel can also land after the last item).
         await prisma.job.update({
           where: { id: jobId },
           data: {
             name: jobName,
-            status: hasErrors ? 'failed' : 'completed',
             results: JSON.stringify(results),
             tokenUsage: totalTokens,
-            completedAt: new Date(),
           },
         });
+        if (!cancelled) {
+          await prisma.job.updateMany({
+            where: { id: jobId, status: { not: 'cancelled' } },
+            data: {
+              status: hasErrors ? 'failed' : 'completed',
+              completedAt: new Date(),
+            },
+          });
+        }
       });
     } catch (fatalError) {
       // Only reached if a step's retries are exhausted on something other than
       // a single item's LLM call (e.g. the finalize-job DB write itself).
       await step.run('mark-job-failed', () =>
-        prisma.job.update({
-          where: { id: jobId },
+        prisma.job.updateMany({
+          where: { id: jobId, status: { not: 'cancelled' } },
           data: { status: 'failed', completedAt: new Date() },
         })
       );
@@ -116,7 +144,13 @@ export const processJob = inngest.createFunction(
     }
 
     return { jobId, itemCount: results.length, totalTokens };
-  }
+  };
+}
+
+export const processJob = inngest.createFunction(
+  { id: 'process-job' },
+  { event: 'job/process.requested' },
+  createProcessJobHandler()
 );
 
 export const functions = [processJob];
