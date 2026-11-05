@@ -174,6 +174,20 @@ Job processing (LLM calls, batching, retries) runs through [Inngest](https://www
 
 Set these on the `backend` service (see table above): `INNGEST_BASE_URL` (the Inngest VPS's Tailscale IP, port 8288), `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`.
 
+The Tailscale access rules must also allow the backend's VPS to reach the Inngest VPS. A tagged device gets no access from `autogroup:member` rules, so add a rule for its tag (**Access controls** → **Policies** → **Add rule**):
+
+| Source | Destination | Port and protocol |
+|--------|-------------|-------------------|
+| Tag of the backend's VPS (e.g. `tag:db`) | Tailscale IP of the Inngest VPS | `tcp:8288` |
+
+Check it from the backend's VPS. This must print `200`:
+
+```bash
+curl -m 8 -sS -o /dev/null -w "%{http_code}\n" http://<inngest-tailscale-ip>:8288/health
+```
+
+Repeat this step if the backend moves to another VPS or its VPS changes tag.
+
 ### Step 2: Sync the app with the Inngest server
 
 From the Inngest server's dashboard (**Apps** → **Sync**), point it at `https://api.promptflow.run/api/inngest` (or the internal service URL, e.g. `http://backend:4000/api/inngest`, if the backend and the Inngest server share a Docker network). This lets Inngest discover the `process-job` function and start invoking it.
@@ -200,6 +214,12 @@ From the Inngest server's dashboard (**Apps** → **Sync**), point it at `https:
 1. Verify `NEXT_PUBLIC_API_URL` is set correctly
 2. Check CORS: `FRONTEND_URL` in backend must match frontend domain
 3. Test API directly: `curl https://api.promptflow.run/health`
+
+### `POST /api/jobs` returns 503 with `UND_ERR_CONNECT_TIMEOUT`
+The backend cannot open a connection to the Inngest server.
+1. Run the `curl` check from [Step 1](#step-1-point-the-backend-at-the-inngest-server) on the backend's VPS
+2. If it times out, check the Tailscale access rules for that VPS's tag. `tailscale ping` does not test them: it can succeed while TCP connections are blocked
+3. Jobs that failed this way do not restart on their own and must be run again
 
 ### Build fails
 1. Ensure `next.config.js` has `output: 'standalone'`
