@@ -29,9 +29,32 @@ class ApiClient {
     return this.token;
   }
 
+  // Échange la session NextAuth contre un nouveau jeton backend (une seule requête à la fois)
+  private refreshPromise: Promise<string | null> | null = null;
+
+  private refreshToken(): Promise<string | null> {
+    if (typeof window === 'undefined') return Promise.resolve(null);
+    if (!this.refreshPromise) {
+      this.refreshPromise = (async () => {
+        try {
+          const response = await fetch('/api/auth/backend-token', { method: 'POST' });
+          if (!response.ok) return null;
+          const data = await response.json();
+          return data.token ? (data.token as string) : null;
+        } catch {
+          return null;
+        } finally {
+          this.refreshPromise = null;
+        }
+      })();
+    }
+    return this.refreshPromise;
+  }
+
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    isRetry = false
   ): Promise<ApiResponse<T>> {
     const token = this.getToken();
     
@@ -49,6 +72,21 @@ class ApiClient {
         ...options,
         headers,
       });
+
+      // Jeton périmé ou invalide : on le vide, on en demande un nouveau, on rejoue une fois
+      if (
+        response.status === 401 &&
+        token &&
+        !isRetry &&
+        !endpoint.startsWith('/api/auth/')
+      ) {
+        this.setToken(null);
+        const fresh = await this.refreshToken();
+        if (fresh) {
+          this.setToken(fresh);
+          return this.request<T>(endpoint, options, true);
+        }
+      }
 
       const data = await response.json();
 
